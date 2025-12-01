@@ -95,7 +95,7 @@ export default function VIPPlansPage() {
     try {
       // Backend uses VIP system, not subscription API
       // Get VIP info from user profile instead
-      const userVipTier = user?.vipTier || VIPTier.FREE;
+      const userVipTier = (user?.vipTier as VIPTier) || VIPTier.FREE;
       setCurrentTier(userVipTier);
     } catch (error) {
       console.error('Failed to load subscription:', error);

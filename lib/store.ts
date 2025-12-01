@@ -207,6 +207,7 @@ export interface Partner {
   birthPlace: string;
   gender: 'male' | 'female' | 'other';
   startDate: string;
+  relationship?: string;
 }
 
 export interface BreakupData {

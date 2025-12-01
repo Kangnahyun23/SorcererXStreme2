@@ -9,8 +9,8 @@ export function createUserContext() {
 
   return {
     name: user?.name,
-    birthDate: user?.birthDate,
-    birthTime: user?.birthTime,
+    birthDate: user?.birth_date,
+    birthTime: user?.birth_time,
     hasPartner: !!partner,
     isInBreakup: !!breakupData?.isActive,
     partnerName: partner?.name || breakupData?.partnerName,
@@ -19,7 +19,6 @@ export function createUserContext() {
       birthDate: partner.birthDate,
       birthTime: partner.birthTime,
       birthPlace: partner.birthPlace,
-      relationship: partner.relationship,
       startDate: partner.startDate
     } : undefined,
     breakupData: breakupData?.isActive ? {
@@ -40,8 +39,8 @@ export function useUserContext() {
 
   return {
     name: user?.name,
-    birthDate: user?.birthDate,
-    birthTime: user?.birthTime,
+    birthDate: user?.birth_date,
+    birthTime: user?.birth_time,
     hasPartner: !!partner,
     isInBreakup: !!breakupData?.isActive,
     partnerName: partner?.name || breakupData?.partnerName,
@@ -50,7 +49,6 @@ export function useUserContext() {
       birthDate: partner.birthDate,
       birthTime: partner.birthTime,
       birthPlace: partner.birthPlace,
-      relationship: partner.relationship,
       startDate: partner.startDate
     } : undefined,
     breakupData: breakupData?.isActive ? {
