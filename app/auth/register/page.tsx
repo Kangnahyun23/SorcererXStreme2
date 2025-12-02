@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { Eye, EyeOff, Mail, Lock, Sparkles, Star, Moon } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, Sparkles, Star, Moon, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { useAuthStore } from '@/lib/store';
 import { AnimatedBackground } from '@/components/ui/AnimatedBackground';
@@ -56,6 +56,15 @@ export default function RegisterPage() {
 
   return (
     <div className="relative min-h-screen flex items-center justify-center p-4 overflow-hidden font-sans text-white">
+      <Link
+        href="/"
+        className="absolute top-6 left-6 z-50 flex items-center gap-2 text-gray-400 hover:text-white transition-colors group"
+      >
+        <div className="p-2 rounded-full bg-white/5 group-hover:bg-white/10 border border-white/5 transition-colors">
+          <ArrowLeft size={18} />
+        </div>
+        <span className="font-medium">Trang chủ</span>
+      </Link>
       <AnimatedBackground />
 
       {/* Mystical Floating Elements */}
