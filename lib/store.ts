@@ -72,7 +72,19 @@ export const useAuthStore = create<AuthState>()(
 
       register: async (email: string, password: string) => {
         try {
-          await authApi.register(email, password);
+          const { token, user } = await authApi.register(email, password);
+          console.log('register user from backend:', user);
+          console.log('register token:', token);
+          
+          // Lưu token và user sau khi đăng ký thành công
+          const mappedUser = {
+            ...user,
+            isProfileComplete: false, // Mới đăng ký chưa hoàn thiện profile
+            vipTier: user.vip_tier,
+            vipExpiresAt: user.vip_expires_at,
+          };
+          
+          set({ user: mappedUser, isAuthenticated: true, token });
           return true;
         } catch (error) {
           console.error(error);
