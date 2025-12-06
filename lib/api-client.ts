@@ -205,12 +205,11 @@ export const horoscopeApi = {
 
 export const partnerApi = {
   add: (data: {
-    partner_name: string;
-    partner_gender: 'male' | 'female' | 'other';
-    partner_birth_date: string;
-    partner_birth_time?: string;
-    partner_birth_place?: string;
-    relationship_start_date?: string;
+    name: string;
+    gender: 'male' | 'female';
+    birth_date: string;
+    birth_time?: string;
+    birth_place?: string;
   }, token: string) =>
     apiRequest('/api/partners', {
       method: 'POST',
@@ -221,6 +220,12 @@ export const partnerApi = {
   remove: (token: string) =>
     apiRequest('/api/partners', {
       method: 'DELETE',
+      token,
+    }),
+
+  get: (token: string) =>
+    apiRequest('/api/partners', {
+      method: 'GET',
       token,
     }),
 };

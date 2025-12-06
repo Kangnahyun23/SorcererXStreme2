@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, Heart, Plus, Edit, Trash2, Calendar, MapPin, Clock, Users, Sparkles, Camera, Save, X, HelpCircle } from 'lucide-react';
+import { User, Heart, Plus, Edit, Trash2, Calendar, MapPin, Clock, Users, Sparkles, Camera, Save, X, HelpCircle, ArrowRight } from 'lucide-react';
 import { Sidebar, useSidebarCollapsed } from '@/components/layout/Sidebar';
 import { useAuthStore, useProfileStore } from '@/lib/store';
 import { Button } from '@/components/ui/Button';
@@ -38,13 +38,14 @@ export default function ProfilePage() {
   });
 
   const { user, isAuthenticated, updateProfile, token } = useAuthStore();
-  const { partner, breakupData, addPartner, updatePartner, breakup, confirmRecovery } = useProfileStore();
+  const { partner, breakupData, addPartner, updatePartner, breakup, confirmRecovery, fetchPartner, moveOn } = useProfileStore();
 
-  // Load user profile from backend on mount
+  // Load user profile and partner info from backend on mount
   useEffect(() => {
-    const loadProfile = async () => {
+    const loadData = async () => {
       if (!token || !isAuthenticated) return;
 
+      // Load Profile
       try {
         const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/users/profile`, {
           headers: {
@@ -54,18 +55,13 @@ export default function ProfilePage() {
 
         if (response.ok) {
           const userData = await response.json();
-          console.log('[Profile] Loaded user data from backend:', userData);
-
-          // Update store with fresh data from backend, preserving existing fields
           const currentUser = useAuthStore.getState().user;
-
-          // Map snake_case to camelCase and remove snake_case fields
           const { vip_tier, vip_expires_at, birth_date, birth_time, birth_place, ...otherData } = userData;
 
           useAuthStore.setState({
             user: {
-              ...currentUser, // Preserve existing fields
-              ...otherData,   // Spread other fields (already in correct format)
+              ...currentUser,
+              ...otherData,
               isProfileComplete: !!(userData.name && userData.birth_date && userData.birth_time && userData.birth_place),
               vipTier: vip_tier || currentUser?.vipTier,
               vipExpiresAt: vip_expires_at || currentUser?.vipExpiresAt,
@@ -74,15 +70,21 @@ export default function ProfilePage() {
               birth_place: birth_place,
             }
           });
-          console.log('[Profile] Updated user state:', useAuthStore.getState().user);
         }
       } catch (error) {
         console.error('Failed to load profile:', error);
       }
+
+      // Load Partner
+      try {
+        await fetchPartner();
+      } catch (error) {
+        console.error('Failed to load partner:', error);
+      }
     };
 
-    loadProfile();
-  }, [token, isAuthenticated]);
+    loadData();
+  }, [token, isAuthenticated, fetchPartner]);
 
   // Helper function to format date for input type="date"
   const formatDateForInput = (dateString: string | undefined) => {
@@ -162,22 +164,26 @@ export default function ProfilePage() {
     }
   };
 
-  const handleAddPartner = () => {
+  const handleAddPartner = async () => {
     if (!partnerForm.name || !partnerForm.birthDate || !partnerForm.birthTime || !partnerForm.birthPlace) {
       toast.error('Vui lòng điền đầy đủ thông tin');
       return;
     }
 
-    addPartner(partnerForm);
-    setPartnerForm({
-      name: '',
-      birthDate: '',
-      birthTime: '',
-      birthPlace: '',
-      gender: 'female'
-    });
-    setShowAddPartner(false);
-    toast.success('Đã thêm thông tin người phụ thuộc!');
+    try {
+      await addPartner(partnerForm);
+      setPartnerForm({
+        name: '',
+        birthDate: '',
+        birthTime: '',
+        birthPlace: '',
+        gender: 'female'
+      });
+      setShowAddPartner(false);
+      toast.success('Đã thêm thông tin người phụ thuộc!');
+    } catch (error: any) {
+      toast.error(error.message || 'Không thể lưu thông tin partner');
+    }
   };
 
   const handleBreakup = () => {
@@ -208,6 +214,13 @@ export default function ProfilePage() {
     }
   };
 
+  const handleMoveOn = () => {
+    if (confirm('Bạn có chắc chắn muốn thoát ly ngay lập tức? Hành động này sẽ xóa vĩnh viễn thông tin người cũ và cho phép bạn thêm người mới.')) {
+      moveOn();
+      toast.success('Đã thoát ly quá trình hồi phục. Chúc bạn sớm tìm được hạnh phúc mới!');
+    }
+  };
+
   if (!isAuthenticated) {
     return null;
   }
@@ -217,7 +230,7 @@ export default function ProfilePage() {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-black font-sans text-white">
+    <div className="flex bg-black font-sans text-white h-screen overflow-hidden">
       <AnimatedBackground />
       <Sidebar />
 
@@ -391,15 +404,25 @@ export default function ProfilePage() {
                           <p className="text-orange-300/70 text-sm">Hãy dành thời gian yêu thương bản thân</p>
                         </div>
                       </div>
-                      <Button
-                        onClick={handleGetBackTogether}
-                        className="bg-green-600/20 border-green-500/30 text-green-300 hover:bg-green-600/30 whitespace-nowrap backdrop-blur-md"
-                        variant="secondary"
-                        size="sm"
-                      >
-                        <Heart className="w-4 h-4 mr-2" />
-                        Quay lại
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button
+                          onClick={handleMoveOn}
+                          className="bg-gray-600/20 border-gray-500/30 text-gray-300 hover:bg-gray-600/30 whitespace-nowrap backdrop-blur-md"
+                          variant="secondary"
+                          size="sm"
+                        >
+                          Thoát ly
+                        </Button>
+                        <Button
+                          onClick={handleGetBackTogether}
+                          className="bg-green-600/20 border-green-500/30 text-green-300 hover:bg-green-600/30 whitespace-nowrap backdrop-blur-md"
+                          variant="secondary"
+                          size="sm"
+                        >
+                          <Heart className="w-4 h-4 mr-2" />
+                          Quay lại
+                        </Button>
+                      </div>
                     </div>
 
                     <div className="bg-black/20 rounded-2xl p-6 border border-orange-500/20">
@@ -422,184 +445,186 @@ export default function ProfilePage() {
               )}
             </AnimatePresence>
 
-            {/* Partner Information */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-              className="bg-white/5 backdrop-blur-xl rounded-3xl p-8 border border-white/10 shadow-xl relative overflow-hidden mb-8"
-            >
-              <div className="absolute bottom-0 left-0 w-64 h-64 bg-pink-500/10 rounded-full blur-3xl -ml-32 -mb-32" />
+            {/* Partner Information - Hidden if breakup is active */}
+            {!breakupData?.isActive && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="bg-white/5 backdrop-blur-xl rounded-3xl p-8 border border-white/10 shadow-xl relative overflow-hidden mb-8"
+              >
+                <div className="absolute bottom-0 left-0 w-64 h-64 bg-pink-500/10 rounded-full blur-3xl -ml-32 -mb-32" />
 
-              <div className="flex justify-between items-center mb-8 relative z-10">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-gradient-to-br from-pink-500 to-rose-600 rounded-xl flex items-center justify-center shadow-lg">
-                    <Heart className="w-6 h-6 text-white" />
+                <div className="flex justify-between items-center mb-8 relative z-10">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-gradient-to-br from-pink-500 to-rose-600 rounded-xl flex items-center justify-center shadow-lg">
+                      <Heart className="w-6 h-6 text-white" />
+                    </div>
+                    <h2 className="text-xl font-bold text-white">Người Phụ Thuộc Tình Cảm</h2>
                   </div>
-                  <h2 className="text-xl font-bold text-white">Người Phụ Thuộc Tình Cảm</h2>
-                </div>
-                {!partner && !showAddPartner && !breakupData?.isActive && (
-                  <Button
-                    onClick={() => setShowAddPartner(true)}
-                    className="bg-pink-500/20 text-pink-300 hover:bg-pink-500/30 border-pink-500/30"
-                    variant="secondary"
-                    size="sm"
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Thêm người phụ thuộc
-                  </Button>
-                )}
-              </div>
-
-              {/* Add Partner Form */}
-              <AnimatePresence>
-                {showAddPartner && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="mb-8 relative z-10"
-                  >
-                    <div className="bg-black/20 rounded-2xl p-6 border border-white/10">
-                      <h3 className="text-lg font-bold text-white mb-6">Thêm thông tin người phụ thuộc</h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="space-y-2">
-                          <label className="text-sm font-medium text-gray-300">Họ và tên</label>
-                          <Input
-                            value={partnerForm.name}
-                            onChange={(e) => setPartnerForm({ ...partnerForm, name: e.target.value })}
-                            placeholder="Nhập họ tên"
-                            className="bg-black/40 border-white/10"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <label className="text-sm font-medium text-gray-300">Giới tính</label>
-                          <div className="grid grid-cols-3 gap-4">
-                            {genderTypes.map((type) => (
-                              <button
-                                key={type.value}
-                                onClick={() => setPartnerForm({ ...partnerForm, gender: type.value as 'male' | 'female' | 'other' })}
-                                className={`flex flex-col items-center justify-center p-4 rounded-xl border transition-all ${partnerForm.gender === type.value
-                                  ? 'bg-white/10 border-pink-500/50 shadow-lg shadow-pink-500/10'
-                                  : 'bg-black/40 border-white/10 hover:bg-white/5'
-                                  }`}
-                              >
-                                <type.icon className={`w-6 h-6 mb-2 ${type.color}`} />
-                                <span className="text-sm text-gray-300">{type.label}</span>
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                        <div className="space-y-2">
-                          <label className="text-sm font-medium text-gray-300">Ngày sinh</label>
-                          <Input
-                            type="date"
-                            value={partnerForm.birthDate}
-                            onChange={(e) => setPartnerForm({ ...partnerForm, birthDate: e.target.value })}
-                            className="bg-black/40 border-white/10"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <label className="text-sm font-medium text-gray-300">Giờ sinh</label>
-                          <Input
-                            type="time"
-                            value={partnerForm.birthTime}
-                            onChange={(e) => setPartnerForm({ ...partnerForm, birthTime: e.target.value })}
-                            className="bg-black/40 border-white/10"
-                          />
-                        </div>
-                        <div className="md:col-span-2 space-y-2">
-                          <label className="text-sm font-medium text-gray-300">Nơi sinh</label>
-                          <Input
-                            value={partnerForm.birthPlace}
-                            onChange={(e) => setPartnerForm({ ...partnerForm, birthPlace: e.target.value })}
-                            placeholder="Thành phố, Quốc gia"
-                            className="bg-black/40 border-white/10"
-                          />
-                        </div>
-                      </div>
-                      <div className="flex gap-4 mt-8">
-                        <Button
-                          onClick={handleAddPartner}
-                          className="flex-1 bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-500 hover:to-rose-500"
-                        >
-                          <Plus className="w-4 h-4 mr-2" />
-                          Thêm người phụ thuộc
-                        </Button>
-                        <Button
-                          onClick={() => setShowAddPartner(false)}
-                          variant="secondary"
-                          className="flex-1"
-                        >
-                          Hủy bỏ
-                        </Button>
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              {/* Current Partner Display */}
-              {partner && !breakupData?.isActive ? (
-                <div className="bg-gradient-to-br from-pink-900/20 to-rose-900/20 rounded-2xl p-8 border border-pink-500/20 relative z-10 group hover:border-pink-500/40 transition-all">
-                  <div className="flex justify-between items-start mb-8">
-                    <div className="flex items-center gap-4">
-                      <div className="w-16 h-16 bg-pink-500/20 rounded-full flex items-center justify-center text-3xl shadow-inner">
-                        {(() => {
-                          const type = getGenderInfo(partner.gender);
-                          const Icon = type.icon;
-                          return <Icon className={`w-8 h-8 ${type.color}`} />;
-                        })()}
-                      </div>
-                      <div>
-                        <h3 className="text-2xl font-bold text-white">{partner.name}</h3>
-                        <p className="text-pink-300 font-medium">{getGenderInfo(partner.gender).label}</p>
-                      </div>
-                    </div>
+                  {!partner && !showAddPartner && (
                     <Button
-                      onClick={handleBreakup}
+                      onClick={() => setShowAddPartner(true)}
+                      className="bg-pink-500/20 text-pink-300 hover:bg-pink-500/30 border-pink-500/30"
                       variant="secondary"
                       size="sm"
-                      className="bg-red-500/10 text-red-300 border-red-500/20 hover:bg-red-500/20"
                     >
-                      <Heart className="w-4 h-4 mr-2" />
-                      Chia tay
+                      <Plus className="w-4 h-4 mr-2" />
+                      Thêm người phụ thuộc
                     </Button>
-                  </div>
+                  )}
+                </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <div className="bg-black/20 rounded-xl p-4 border border-white/5">
-                      <p className="text-sm text-gray-400 mb-1">Ngày sinh</p>
-                      <p className="text-white font-medium">{partner.birthDate}</p>
+                {/* Add Partner Form */}
+                <AnimatePresence>
+                  {showAddPartner && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="mb-8 relative z-10"
+                    >
+                      <div className="bg-black/20 rounded-2xl p-6 border border-white/10">
+                        <h3 className="text-lg font-bold text-white mb-6">Thêm thông tin người phụ thuộc</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div className="space-y-2">
+                            <label className="text-sm font-medium text-gray-300">Họ và tên</label>
+                            <Input
+                              value={partnerForm.name}
+                              onChange={(e) => setPartnerForm({ ...partnerForm, name: e.target.value })}
+                              placeholder="Nhập họ tên"
+                              className="bg-black/40 border-white/10"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-sm font-medium text-gray-300">Giới tính</label>
+                            <div className="grid grid-cols-3 gap-4">
+                              {genderTypes.map((type) => (
+                                <button
+                                  key={type.value}
+                                  onClick={() => setPartnerForm({ ...partnerForm, gender: type.value as 'male' | 'female' | 'other' })}
+                                  className={`flex flex-col items-center justify-center p-4 rounded-xl border transition-all ${partnerForm.gender === type.value
+                                    ? 'bg-white/10 border-pink-500/50 shadow-lg shadow-pink-500/10'
+                                    : 'bg-black/40 border-white/10 hover:bg-white/5'
+                                    }`}
+                                >
+                                  <type.icon className={`w-6 h-6 mb-2 ${type.color}`} />
+                                  <span className="text-sm text-gray-300">{type.label}</span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-sm font-medium text-gray-300">Ngày sinh</label>
+                            <Input
+                              type="date"
+                              value={partnerForm.birthDate}
+                              onChange={(e) => setPartnerForm({ ...partnerForm, birthDate: e.target.value })}
+                              className="bg-black/40 border-white/10"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-sm font-medium text-gray-300">Giờ sinh</label>
+                            <Input
+                              type="time"
+                              value={partnerForm.birthTime}
+                              onChange={(e) => setPartnerForm({ ...partnerForm, birthTime: e.target.value })}
+                              className="bg-black/40 border-white/10"
+                            />
+                          </div>
+                          <div className="md:col-span-2 space-y-2">
+                            <label className="text-sm font-medium text-gray-300">Nơi sinh</label>
+                            <Input
+                              value={partnerForm.birthPlace}
+                              onChange={(e) => setPartnerForm({ ...partnerForm, birthPlace: e.target.value })}
+                              placeholder="Thành phố, Quốc gia"
+                              className="bg-black/40 border-white/10"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex gap-4 mt-8">
+                          <Button
+                            onClick={handleAddPartner}
+                            className="flex-1 bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-500 hover:to-rose-500"
+                          >
+                            <Plus className="w-4 h-4 mr-2" />
+                            Thêm người phụ thuộc
+                          </Button>
+                          <Button
+                            onClick={() => setShowAddPartner(false)}
+                            variant="secondary"
+                            className="flex-1"
+                          >
+                            Hủy bỏ
+                          </Button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Current Partner Display */}
+                {partner ? (
+                  <div className="bg-gradient-to-br from-pink-900/20 to-rose-900/20 rounded-2xl p-8 border border-pink-500/20 relative z-10 group hover:border-pink-500/40 transition-all">
+                    <div className="flex justify-between items-start mb-8">
+                      <div className="flex items-center gap-4">
+                        <div className="w-16 h-16 bg-pink-500/20 rounded-full flex items-center justify-center text-3xl shadow-inner">
+                          {(() => {
+                            const type = getGenderInfo(partner.gender);
+                            const Icon = type.icon;
+                            return <Icon className={`w-8 h-8 ${type.color}`} />;
+                          })()}
+                        </div>
+                        <div>
+                          <h3 className="text-2xl font-bold text-white">{partner.name}</h3>
+                          <p className="text-pink-300 font-medium">{getGenderInfo(partner.gender).label}</p>
+                        </div>
+                      </div>
+                      <Button
+                        onClick={handleBreakup}
+                        variant="secondary"
+                        size="sm"
+                        className="bg-red-500/10 text-red-300 border-red-500/20 hover:bg-red-500/20"
+                      >
+                        <Heart className="w-4 h-4 mr-2" />
+                        Chia tay
+                      </Button>
                     </div>
-                    <div className="bg-black/20 rounded-xl p-4 border border-white/5">
-                      <p className="text-sm text-gray-400 mb-1">Giờ sinh</p>
-                      <p className="text-white font-medium">{partner.birthTime}</p>
-                    </div>
-                    <div className="bg-black/20 rounded-xl p-4 border border-white/5">
-                      <p className="text-sm text-gray-400 mb-1">Nơi sinh</p>
-                      <p className="text-white font-medium">{partner.birthPlace}</p>
-                    </div>
-                    <div className="bg-black/20 rounded-xl p-4 border border-white/5">
-                      <p className="text-sm text-gray-400 mb-1">Bắt đầu từ</p>
-                      <p className="text-white font-medium">
-                        {new Date(partner.startDate).toLocaleDateString('vi-VN')}
-                      </p>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                      <div className="bg-black/20 rounded-xl p-4 border border-white/5">
+                        <p className="text-sm text-gray-400 mb-1">Ngày sinh</p>
+                        <p className="text-white font-medium">{partner.birthDate}</p>
+                      </div>
+                      <div className="bg-black/20 rounded-xl p-4 border border-white/5">
+                        <p className="text-sm text-gray-400 mb-1">Giờ sinh</p>
+                        <p className="text-white font-medium">{partner.birthTime}</p>
+                      </div>
+                      <div className="bg-black/20 rounded-xl p-4 border border-white/5">
+                        <p className="text-sm text-gray-400 mb-1">Nơi sinh</p>
+                        <p className="text-white font-medium">{partner.birthPlace}</p>
+                      </div>
+                      <div className="bg-black/20 rounded-xl p-4 border border-white/5">
+                        <p className="text-sm text-gray-400 mb-1">Bắt đầu từ</p>
+                        <p className="text-white font-medium">
+                          {new Date(partner.startDate).toLocaleDateString('vi-VN')}
+                        </p>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ) : !breakupData?.isActive && !showAddPartner && (
-                <div className="text-center py-12 relative z-10">
-                  <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-6 border border-white/10">
-                    <Heart className="w-10 h-10 text-gray-600" />
+                ) : !showAddPartner && (
+                  <div className="text-center py-12 relative z-10">
+                    <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-6 border border-white/10">
+                      <Heart className="w-10 h-10 text-gray-600" />
+                    </div>
+                    <p className="text-gray-400 mb-2 text-lg">Chưa có thông tin người phụ thuộc</p>
+                    <p className="text-sm text-gray-500 max-w-md mx-auto">
+                      Thêm thông tin người yêu/vợ/chồng để AI có thể phân tích độ tương hợp và dự đoán tình duyên chính xác hơn
+                    </p>
                   </div>
-                  <p className="text-gray-400 mb-2 text-lg">Chưa có thông tin người phụ thuộc</p>
-                  <p className="text-sm text-gray-500 max-w-md mx-auto">
-                    Thêm thông tin người yêu/vợ/chồng để AI có thể phân tích độ tương hợp và dự đoán tình duyên chính xác hơn
-                  </p>
-                </div>
-              )}
-            </motion.div>
+                )}
+              </motion.div>
+            )}
 
             {/* Reminder Settings */}
             <ReminderSettings />
