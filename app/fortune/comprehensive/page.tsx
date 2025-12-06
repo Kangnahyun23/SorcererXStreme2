@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { FormattedContent } from '@/components/ui/FormattedContent';
 import { NatalChart } from '@/components/fortune/NatalChart';
+import { horoscopeApi } from '@/lib/api-client';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 
@@ -105,28 +106,119 @@ export default function ComprehensiveFortunePage() {
   const [analysis, setAnalysis] = useState('');
   const [showChart, setShowChart] = useState(false);
   const [selectedCung, setSelectedCung] = useState<string | null>(null);
-  const { user, isAuthenticated } = useAuthStore();
+  const { user, isAuthenticated, token } = useAuthStore();
   const { partner } = useProfileStore();
 
-  const generateTuViChart = () => {
+  const generateTuViChart = async () => {
     if (!user?.birth_date || !user?.birth_time) {
       toast.error('Vui lòng cập nhật đầy đủ ngày và giờ sinh trong hồ sơ cá nhân');
+      return;
+    }
+
+    if (!user?.birth_place) {
+      toast.error('Vui lòng cập nhật nơi sinh trong hồ sơ cá nhân');
+      return;
+    }
+
+    if (!token || !isAuthenticated) {
+      toast.error('Vui lòng đăng nhập để sử dụng tính năng này');
       return;
     }
 
     setIsAnalyzing(true);
     setShowChart(false);
 
-    setTimeout(() => {
+    try {
+      // Format birth_date to YYYY-MM-DD
+      const formatBirthDate = (dateStr: string): string => {
+        if (!dateStr) return '';
+        const date = new Date(dateStr);
+        if (!isNaN(date.getTime())) {
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          return `${year}-${month}-${day}`;
+        }
+        return dateStr;
+      };
+
+      console.log('[Comprehensive Fortune] Calling natal chart API...');
+
+      // Call natal chart API
+      const response = await horoscopeApi.getHoroscope({
+        domain: 'horoscope',
+        feature_type: 'natal_chart',
+        user_context: {
+          name: user.name || 'User',
+          gender: user.gender || 'male',
+          birth_date: formatBirthDate(user.birth_date),
+          birth_time: user.birth_time,  // ✅ REQUIRED
+          birth_place: user.birth_place  // ✅ REQUIRED
+        }
+        // ❌ NO data.target_date for natal chart
+      }, token);
+
+      // Parse giống như Tarot
+      let analysisText = '';
+      
+      try {
+        if (response.analysis) {
+          if (typeof response.analysis === 'object') {
+            if (response.analysis.body) {
+              const bodyData = typeof response.analysis.body === 'string' 
+                ? JSON.parse(response.analysis.body) 
+                : response.analysis.body;
+              analysisText = bodyData.answer?.analysis || bodyData.answer || bodyData.analysis || bodyData.message || JSON.stringify(bodyData, null, 2);
+            } else {
+              analysisText = response.analysis.data || response.analysis.message || JSON.stringify(response.analysis, null, 2);
+            }
+          } else {
+            analysisText = response.analysis;
+          }
+        } else if (response.data) {
+          analysisText = typeof response.data === 'string' ? response.data : JSON.stringify(response.data, null, 2);
+        } else if (response.statusCode && response.body) {
+          const bodyData = typeof response.body === 'string'
+            ? JSON.parse(response.body)
+            : response.body;
+          analysisText = bodyData.answer?.analysis || bodyData.answer || bodyData.analysis || JSON.stringify(bodyData, null, 2);
+        }
+        
+      } catch (parseError) {
+        console.error('[Comprehensive Fortune] Parse error:', parseError);
+        analysisText = 'Có lỗi khi xử lý kết quả. Vui lòng thử lại.';
+      }
+      
+      if (!analysisText || analysisText.trim() === '') {
+        toast.error('Không nhận được kết quả từ hệ thống. Vui lòng thử lại');
+        setIsAnalyzing(false);
+        return;
+      }
+
+      // Generate mock chart data for visualization (API doesn't return chart structure yet)
       const mockChartData = generateMockTuViData();
       setChartData(mockChartData);
       setShowChart(true);
-      setTimeout(() => {
-        generateTuViAnalysis(mockChartData);
-        setIsAnalyzing(false);
-        toast.success('Đã hoàn tất lập lá số Tử Vi chi tiết!');
-      }, 2000);
-    }, 3000);
+      
+      // Use real API analysis
+      setAnalysis(analysisText);
+      
+      toast.success('Đã hoàn tất lập lá số Tử Vi chi tiết!');
+    } catch (error: any) {
+      console.error('[Comprehensive Fortune] Error:', error);
+      
+      if (error.message && error.message.includes('LIMIT_REACHED')) {
+        toast.warning('Đã hết lượt sử dụng');
+        setAnalysis(`⚠️ **Đã hết lượt sử dụng**\n\n` +
+          `Bạn đã hết lượt xem lá số Tử Vi.\n\n` +
+          `Nâng cấp lên **PREMIUM** hoặc **ULTIMATE** để tiếp tục!`);
+        setShowChart(false);
+      } else {
+        toast.error(error.message || 'Có lỗi xảy ra khi lập lá số');
+      }
+    } finally {
+      setIsAnalyzing(false);
+    }
   };
 
   const generateMockTuViData = (): TuViChartData => {

@@ -53,17 +53,27 @@ export default function ProfilePage() {
         
         if (response.ok) {
           const userData = await response.json();
-          // Update store with fresh data from backend
+          console.log('[Profile] Loaded user data from backend:', userData);
+          
+          // Update store with fresh data from backend, preserving existing fields
+          const currentUser = useAuthStore.getState().user;
+          
+          // Map snake_case to camelCase and remove snake_case fields
+          const { vip_tier, vip_expires_at, birth_date, birth_time, birth_place, ...otherData } = userData;
+          
           useAuthStore.setState({ 
             user: {
-              ...userData,
-              vipTier: userData.vip_tier,
-              vipExpiresAt: userData.vip_expires_at,
-              birth_date: userData.birth_date,
-              birth_time: userData.birth_time,
-              birth_place: userData.birth_place,
+              ...currentUser, // Preserve existing fields
+              ...otherData,   // Spread other fields (already in correct format)
+              isProfileComplete: !!(userData.name && userData.birth_date && userData.birth_time && userData.birth_place),
+              vipTier: vip_tier || currentUser?.vipTier,
+              vipExpiresAt: vip_expires_at || currentUser?.vipExpiresAt,
+              birth_date: birth_date,
+              birth_time: birth_time,
+              birth_place: birth_place,
             }
           });
+          console.log('[Profile] Updated user state:', useAuthStore.getState().user);
         }
       } catch (error) {
         console.error('Failed to load profile:', error);

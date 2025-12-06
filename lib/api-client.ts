@@ -189,12 +189,18 @@ export const horoscopeApi = {
     data?: {
       target_date?: string;
     };
-  }, token: string) =>
-    apiRequest('/api/horoscope', {
+  }, token: string) => {
+    // Xác định endpoint dựa vào feature_type
+    const endpoint = data.feature_type === 'daily' 
+      ? '/api/horoscope/daily' 
+      : '/api/horoscope/natal';
+    
+    return apiRequest(endpoint, {
       method: 'POST',
       body: data,
       token,
-    }),
+    });
+  },
 };
 
 export const partnerApi = {

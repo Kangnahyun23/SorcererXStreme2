@@ -3,6 +3,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { Toaster } from 'react-hot-toast';
 import GlobalStyles from '@/components/ui/GlobalStyles';
+import AmplifyProvider from './AmplifyProvider';
+import { Footer } from '@/components/layout/Footer';
 
 export const metadata: Metadata = {
   title: "SorcererXStreme - Huyền Thuật AI",
@@ -24,6 +26,7 @@ export default function RootLayout({
       </head>
       <body className="antialiased bg-gray-950 text-white min-h-screen" style={{ fontFamily: 'Be Vietnam Pro, sans-serif' }}>
         <GlobalStyles />
+        <AmplifyProvider>
         
         {/* Background layers */}
         <div className="fixed inset-0 bg-gradient-to-br from-gray-950 via-gray-900 to-red-950/20 -z-10"></div>
@@ -41,6 +44,8 @@ export default function RootLayout({
         </div>
         
         {children}
+        
+        <Footer />
         
         <Toaster 
           position="top-right"
@@ -67,6 +72,7 @@ export default function RootLayout({
             },
           }}
         />
+        </AmplifyProvider>
       </body>
     </html>
   );

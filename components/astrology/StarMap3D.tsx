@@ -47,6 +47,19 @@ export default function StarMap3D({ birthDate, birthTime, birthPlace, userZodiac
   const [mounted, setMounted] = useState(false);
   const mouseRef = useRef({ x: 0, y: 0, isDown: false });
 
+  // Format birth date to dd/mm/yyyy
+  const formatBirthDate = (dateString: string) => {
+    try {
+      const date = new Date(dateString);
+      const day = String(date.getDate()).padStart(2, '0');
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const year = date.getFullYear();
+      return `${day}/${month}/${year}`;
+    } catch (e) {
+      return dateString;
+    }
+  };
+
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -218,13 +231,13 @@ export default function StarMap3D({ birthDate, birthTime, birthPlace, userZodiac
     gradient.addColorStop(0, '#0a0a2e');
     gradient.addColorStop(0.3, '#16213e');
     gradient.addColorStop(0.6, '#0f0a2e');
-    gradient.addColorStop(1, '#000000');
+    gradient.addColorStop(1, '#0a0a2e');
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     const nebulaGradient = ctx.createRadialGradient(centerX * 0.7, centerY * 0.3, 0, centerX * 0.7, centerY * 0.3, 300);
-    nebulaGradient.addColorStop(0, 'rgba(148, 87, 235, 0.25)');
-    nebulaGradient.addColorStop(0.5, 'rgba(59, 130, 246, 0.15)');
+    nebulaGradient.addColorStop(0, 'rgba(148, 87, 235, 0.08)');
+    nebulaGradient.addColorStop(0.5, 'rgba(59, 130, 246, 0.05)');
     nebulaGradient.addColorStop(1, 'transparent');
     ctx.fillStyle = nebulaGradient;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -540,7 +553,7 @@ export default function StarMap3D({ birthDate, birthTime, birthPlace, userZodiac
       transition={{ duration: 0.6 }}
       className="relative"
     >
-      <div className="bg-gradient-to-br from-gray-900/90 to-gray-800/90 rounded-2xl p-6 border border-gray-700/40 backdrop-blur-xl shadow-2xl">
+      <div className="bg-[#0a0a2e] rounded-2xl p-6 border border-gray-700/40 backdrop-blur-xl shadow-2xl">
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-xl font-bold text-white flex items-center">
             <Star className="w-6 h-6 mr-2 text-yellow-400" />
@@ -570,15 +583,14 @@ export default function StarMap3D({ birthDate, birthTime, birthPlace, userZodiac
           </div>
         </div>
 
-        <div className="relative rounded-xl overflow-hidden border border-gray-600/40 bg-black">
+        <div className="relative rounded-xl overflow-hidden border border-gray-600/40 bg-[#0a0a2e]">
           <canvas
             ref={canvasRef}
             className="w-full h-auto cursor-grab active:cursor-grabbing block"
             style={{ 
-              maxHeight: '750px', 
-              minHeight: '600px',
               width: '100%',
-              height: '600px'
+              height: '800px',
+              minHeight: '800px'
             }}
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
@@ -661,7 +673,7 @@ export default function StarMap3D({ birthDate, birthTime, birthPlace, userZodiac
               <Sun className="w-5 h-5 text-orange-400 mr-2" />
               <p className="text-gray-300 font-medium">Ngày sinh</p>
             </div>
-            <p className="text-white font-bold text-lg">{birthDate}</p>
+            <p className="text-white font-bold text-lg">{formatBirthDate(birthDate)}</p>
           </div>
 
           <div className="bg-gradient-to-br from-blue-900/30 to-purple-900/30 rounded-xl p-4 border border-blue-500/20">

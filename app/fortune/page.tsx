@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, Moon, Star, Heart, Calendar, ArrowRight, MapPin, Clock, RotateCcw, User as UserIcon, Briefcase as BriefcaseIcon } from 'lucide-react';
+import { Sparkles, Moon, Star, Heart, Calendar, ArrowRight, MapPin, Clock, RotateCcw, User as UserIcon } from 'lucide-react';
 import { Sidebar, useSidebarCollapsed } from '@/components/layout/Sidebar';
 import { useAuthStore, useProfileStore } from '@/lib/store';
 import { Button } from '@/components/ui/Button';
@@ -31,6 +31,13 @@ export default function FortunePage() {
   const [tuviResult, setTuviResult] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
 
+  // States for Daily Horoscope
+  const [dailyInput, setDailyInput] = useState({
+    targetDate: new Date().toISOString().split('T')[0] // Today's date in YYYY-MM-DD
+  });
+  const [dailyResult, setDailyResult] = useState<any>(null);
+  const [isDailyLoading, setIsDailyLoading] = useState(false);
+
   // Sync user data to form when user loads
   useEffect(() => {
     if (user) {
@@ -56,7 +63,146 @@ export default function FortunePage() {
     }
   }, [user]);
 
-  // Mock Daily Horoscope
+  // Handler for Daily Horoscope
+  const handleDailySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsDailyLoading(true);
+
+    try {
+      if (!token || !isAuthenticated) {
+        toast.error('Vui lòng đăng nhập để sử dụng tính năng này');
+        setIsDailyLoading(false);
+        return;
+      }
+
+      if (!user?.birth_time) {
+        toast.error('Vui lòng cập nhật giờ sinh trong hồ sơ cá nhân');
+        setIsDailyLoading(false);
+        return;
+      }
+
+      if (!user?.birth_place) {
+        toast.error('Vui lòng cập nhật nơi sinh trong hồ sơ cá nhân');
+        setIsDailyLoading(false);
+        return;
+      }
+
+      if (!dailyInput.targetDate) {
+        toast.error('Vui lòng chọn ngày xem tử vi');
+        setIsDailyLoading(false);
+        return;
+      }
+
+      // Format user birth_date to YYYY-MM-DD
+      const formatBirthDate = (dateStr: string): string => {
+        if (!dateStr) return '';
+        const date = new Date(dateStr);
+        if (!isNaN(date.getTime())) {
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          return `${year}-${month}-${day}`;
+        }
+        return dateStr;
+      };
+
+      console.log('[Fortune Daily] Sending request:', {
+        target_date: dailyInput.targetDate,
+        birth_time: user.birth_time,
+        birth_place: user.birth_place
+      });
+
+      // Call daily horoscope API
+      const response = await horoscopeApi.getHoroscope({
+        domain: 'horoscope',
+        feature_type: 'daily',
+        user_context: {
+          name: user.name || 'User',
+          gender: user.gender || 'male',
+          birth_date: formatBirthDate(user.birth_date || ''),
+          birth_time: user.birth_time,  // ✅ REQUIRED
+          birth_place: user.birth_place  // ✅ REQUIRED
+        },
+        data: {
+          target_date: dailyInput.targetDate  // ✅ REQUIRED for daily
+        }
+      }, token);
+
+      // Parse giống như Tarot - backend trả về: { analysis: {...} }
+      let analysis = '';
+      
+      try {
+        // Nếu response có analysis field (như Tarot)
+        if (response.analysis) {
+          // Analysis là object (Lambda format)
+          if (typeof response.analysis === 'object') {
+            // Lambda response: { statusCode, headers, body }
+            if (response.analysis.body) {
+              const bodyData = typeof response.analysis.body === 'string' 
+                ? JSON.parse(response.analysis.body) 
+                : response.analysis.body;
+              
+              // Lấy answer từ bodyData
+              analysis = bodyData.answer?.analysis || bodyData.answer || bodyData.analysis || bodyData.message || JSON.stringify(bodyData, null, 2);
+            } else {
+              analysis = response.analysis.data || response.analysis.message || JSON.stringify(response.analysis, null, 2);
+            }
+          } else {
+            // analysis is string
+            analysis = response.analysis;
+          }
+        }
+        // Nếu response có data field (như Chat)
+        else if (response.data) {
+          analysis = typeof response.data === 'string' ? response.data : JSON.stringify(response.data, null, 2);
+        }
+        // Direct Lambda format: { statusCode, headers, body }
+        else if (response.statusCode && response.body) {
+          const bodyData = typeof response.body === 'string'
+            ? JSON.parse(response.body)
+            : response.body;
+          analysis = bodyData.answer?.analysis || bodyData.answer || bodyData.analysis || JSON.stringify(bodyData, null, 2);
+        }
+        
+      } catch (parseError) {
+        console.error('[Fortune Daily] Parse error:', parseError);
+        analysis = 'Có lỗi khi xử lý kết quả. Vui lòng thử lại.';
+      }
+      
+      if (!analysis || analysis.trim() === '') {
+        toast.error('Không nhận được kết quả từ hệ thống. Vui lòng thử lại');
+        setIsDailyLoading(false);
+        toast.error('Không nhận được kết quả từ hệ thống. Vui lòng thử lại');
+        setIsDailyLoading(false);
+        return;
+      }
+
+      setDailyResult({
+        analysis: analysis,
+        date: dailyInput.targetDate
+      });
+
+      toast.success('Đã xem tử vi thành công!');
+    } catch (error: any) {
+      console.error('[Fortune Daily] Error:', error);
+      
+      if (error.message && error.message.includes('LIMIT_REACHED')) {
+        setDailyResult({
+          analysis: `⚠️ **Đã hết lượt sử dụng**\n\n` +
+            `Bạn đã hết lượt xem Tử Vi hàng ngày.\n\n` +
+            `Nâng cấp lên **PREMIUM** hoặc **ULTIMATE** để tiếp tục!`,
+          date: dailyInput.targetDate
+        });
+        toast.error('Đã hết lượt sử dụng');
+      } else {
+        toast.error(error.message || 'Có lỗi xảy ra khi xem tử vi');
+      }
+    } finally {
+      setIsDailyLoading(false);
+    }
+  };
+
+  // Mock Daily Horoscope - Remove this when API is working
   const dailyHoroscope = {
     general: "Hôm nay là một ngày tràn đầy năng lượng tích cực. Bạn sẽ cảm thấy hứng khởi và sẵn sàng đối mặt với mọi thử thách.",
     love: "Tình cảm thăng hoa, hãy dành thời gian cho người ấy.",
@@ -83,19 +229,32 @@ export default function FortunePage() {
       }
 
       // Validate required fields
-      if (!tuviInput.name || !tuviInput.birthDate || !tuviInput.birthTime || !tuviInput.birthPlace) {
-        toast.error('Vui lòng điền đầy đủ thông tin');
+      if (!tuviInput.name || !tuviInput.birthDate) {
+        toast.error('Vui lòng điền đầy đủ họ tên và ngày sinh');
         setIsLoading(false);
         return;
       }
 
-      // Format birth_date from dd/mm/yyyy to DD-MM-YYYY for Python AI
-      const formatBirthDate = (dateStr: string) => {
+      // ⚠️ CRITICAL: birth_time and birth_place REQUIRED for horoscope
+      if (!tuviInput.birthTime) {
+        toast.error('Vui lòng nhập giờ sinh (bắt buộc cho Tử Vi)');
+        setIsLoading(false);
+        return;
+      }
+
+      if (!tuviInput.birthPlace) {
+        toast.error('Vui lòng nhập nơi sinh (bắt buộc cho Tử Vi)');
+        setIsLoading(false);
+        return;
+      }
+
+      // Format birth_date from dd/mm/yyyy to YYYY-MM-DD for backend
+      const formatBirthDate = (dateStr: string): string => {
         if (!dateStr) return dateStr;
         // Check if already in dd/mm/yyyy format
         if (dateStr.includes('/')) {
           const [day, month, year] = dateStr.split('/');
-          return `${day}-${month}-${year}`;
+          return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
         }
         // Fallback for other formats
         const date = new Date(dateStr);
@@ -103,27 +262,63 @@ export default function FortunePage() {
           const day = String(date.getDate()).padStart(2, '0');
           const month = String(date.getMonth() + 1).padStart(2, '0');
           const year = date.getFullYear();
-          return `${day}-${month}-${year}`;
+          return `${year}-${month}-${day}`;
         }
         return dateStr;
       };
 
+      const formattedBirthDate = formatBirthDate(tuviInput.birthDate);
+
+      console.log('[Fortune] Sending natal chart request:', { 
+        birth_date: formattedBirthDate,
+        birth_time: tuviInput.birthTime,
+        birth_place: tuviInput.birthPlace
+      });
+
+      // Call natal chart API - NO target_date needed
       const response = await horoscopeApi.getHoroscope({
         domain: 'horoscope',
-        feature_type: 'natal_chart' as any,
+        feature_type: 'natal_chart',
         user_context: {
           name: tuviInput.name,
           gender: tuviInput.gender,
-          birth_date: formatBirthDate(tuviInput.birthDate),
-          birth_time: tuviInput.birthTime,
-          birth_place: tuviInput.birthPlace
+          birth_date: formattedBirthDate,
+          birth_time: tuviInput.birthTime,  // ✅ REQUIRED
+          birth_place: tuviInput.birthPlace  // ✅ REQUIRED
         }
+        // ❌ NO data.target_date for natal chart
       }, token);
 
-      console.log('[Fortune] Backend response:', response);
-
-      // Extract analysis from response (backend returns {analysis: answer})
-      const analysis = response?.analysis || '';
+      // Parse giống như Tarot
+      let analysis = '';
+      
+      try {
+        if (response.analysis) {
+          if (typeof response.analysis === 'object') {
+            if (response.analysis.body) {
+              const bodyData = typeof response.analysis.body === 'string' 
+                ? JSON.parse(response.analysis.body) 
+                : response.analysis.body;
+              analysis = bodyData.answer?.analysis || bodyData.answer || bodyData.analysis || bodyData.message || JSON.stringify(bodyData, null, 2);
+            } else {
+              analysis = response.analysis.data || response.analysis.message || JSON.stringify(response.analysis, null, 2);
+            }
+          } else {
+            analysis = response.analysis;
+          }
+        } else if (response.data) {
+          analysis = typeof response.data === 'string' ? response.data : JSON.stringify(response.data, null, 2);
+        } else if (response.statusCode && response.body) {
+          const bodyData = typeof response.body === 'string'
+            ? JSON.parse(response.body)
+            : response.body;
+          analysis = bodyData.answer?.analysis || bodyData.answer || bodyData.analysis || JSON.stringify(bodyData, null, 2);
+        }
+        
+      } catch (parseError) {
+        console.error('[Fortune] Parse error:', parseError);
+        analysis = 'Có lỗi khi xử lý kết quả. Vui lòng thử lại.';
+      }
       
       if (!analysis || analysis.trim() === '') {
         toast.error('Không nhận được kết quả từ hệ thống. Vui lòng thử lại');
@@ -137,8 +332,21 @@ export default function FortunePage() {
 
       toast.success('Đã lập lá số tử vi thành công!');
     } catch (error: any) {
-      console.error('Error in Tu Vi:', error);
-      toast.error(error.message || 'Có lỗi xảy ra khi lập lá số');
+      console.error('[Fortune] Error:', error);
+      
+      // Xử lý error từ API
+      if (error.message && error.message.includes('LIMIT_REACHED')) {
+        setTuviResult({
+          analysis: `⚠️ **Đã hết lượt sử dụng**\n\n` +
+            `Bạn đã hết lượt xem lá số Tử Vi.\n\n` +
+            `Nâng cấp lên **PREMIUM** hoặc **ULTIMATE** để tiếp tục!`
+        });
+        toast.error('Đã hết lượt sử dụng');
+      } else if (error.message && error.message.includes('500')) {
+        toast.error('Lỗi server. Vui lòng thử lại sau');
+      } else {
+        toast.error(error.message || 'Có lỗi xảy ra khi lập lá số');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -226,47 +434,114 @@ export default function FortunePage() {
                   exit={{ opacity: 0, y: -20 }}
                   className="space-y-8"
                 >
-                  <div className="text-center mb-8">
-                    <h2 className="text-3xl font-bold text-white mb-2">Tử Vi Hôm Nay</h2>
-                    <p className="text-gray-400">{new Date().toLocaleDateString('vi-VN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                  </div>
+                  {!dailyResult ? (
+                    <div className="max-w-2xl mx-auto">
+                      <div className="bg-white/5 backdrop-blur-xl rounded-3xl p-8 border border-white/10 shadow-xl">
+                        <div className="text-center mb-8">
+                          <h2 className="text-2xl font-bold text-white mb-2">Tử Vi Hàng Ngày</h2>
+                          <p className="text-gray-400">Chọn ngày để xem vận mệnh và những điều cần lưu ý</p>
+                        </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="bg-white/5 backdrop-blur-xl rounded-2xl p-8 border border-white/10 hover:border-yellow-500/30 transition-all group">
-                      <div className="w-12 h-12 bg-yellow-500/20 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                        <Star className="w-6 h-6 text-yellow-400" />
-                      </div>
-                      <h3 className="text-xl font-bold text-white mb-4">Tổng Quan</h3>
-                      <p className="text-gray-300 leading-relaxed">{dailyHoroscope.general}</p>
-                    </div>
+                        {/* Check if user has birth_time and birth_place */}
+                        {(!user?.birth_time || !user?.birth_place) && (
+                          <div className="mb-6 bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4">
+                            <div className="flex items-start">
+                              <Star className="w-5 h-5 text-yellow-400 mr-3 mt-0.5 flex-shrink-0" />
+                              <div>
+                                <p className="text-yellow-300 font-medium mb-1">⚠️ Thiếu thông tin bắt buộc</p>
+                                <p className="text-yellow-200 text-sm">
+                                  Tử Vi yêu cầu <strong>giờ sinh</strong> và <strong>nơi sinh</strong>. 
+                                  Vui lòng cập nhật trong hồ sơ cá nhân.
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
 
-                    <div className="bg-white/5 backdrop-blur-xl rounded-2xl p-8 border border-white/10 hover:border-pink-500/30 transition-all group">
-                      <div className="w-12 h-12 bg-pink-500/20 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                        <Heart className="w-6 h-6 text-pink-400" />
-                      </div>
-                      <h3 className="text-xl font-bold text-white mb-4">Tình Cảm</h3>
-                      <p className="text-gray-300 leading-relaxed">{dailyHoroscope.love}</p>
-                    </div>
+                        <form onSubmit={handleDailySubmit} className="space-y-6">
+                          <div className="space-y-2">
+                            <label className="text-sm font-medium text-gray-300 flex items-center">
+                              <Calendar className="w-4 h-4 mr-2" />
+                              Chọn ngày xem tử vi
+                            </label>
+                            <input
+                              type="date"
+                              value={dailyInput.targetDate}
+                              onChange={(e) => setDailyInput({ ...dailyInput, targetDate: e.target.value })}
+                              className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-yellow-500/50 focus:border-transparent transition-all"
+                            />
+                            <p className="text-xs text-gray-500 mt-1">
+                              Có thể xem quá khứ, hiện tại hoặc tương lai
+                            </p>
+                          </div>
 
-                    <div className="bg-white/5 backdrop-blur-xl rounded-2xl p-8 border border-white/10 hover:border-blue-500/30 transition-all group">
-                      <div className="w-12 h-12 bg-blue-500/20 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                        <BriefcaseIcon className="w-6 h-6 text-blue-400" />
-                      </div>
-                      <h3 className="text-xl font-bold text-white mb-4">Sự Nghiệp</h3>
-                      <p className="text-gray-300 leading-relaxed">{dailyHoroscope.career}</p>
-                    </div>
+                          <div className="bg-black/20 rounded-xl p-4 space-y-2 text-sm">
+                            <h3 className="text-white font-medium mb-3">Thông tin của bạn:</h3>
+                            <div className="grid grid-cols-2 gap-3 text-gray-400">
+                              <div>
+                                <span className="text-gray-500">Họ tên:</span>
+                                <p className="text-white">{user?.name || 'Chưa cập nhật'}</p>
+                              </div>
+                              <div>
+                                <span className="text-gray-500">Ngày sinh:</span>
+                                <p className="text-white">{user?.birth_date ? new Date(user.birth_date).toLocaleDateString('vi-VN') : 'Chưa cập nhật'}</p>
+                              </div>
+                              <div>
+                                <span className="text-gray-500">Giờ sinh:</span>
+                                <p className={user?.birth_time ? "text-white" : "text-red-400"}>{user?.birth_time || '⚠️ Bắt buộc'}</p>
+                              </div>
+                              <div>
+                                <span className="text-gray-500">Nơi sinh:</span>
+                                <p className={user?.birth_place ? "text-white" : "text-red-400"}>{user?.birth_place || '⚠️ Bắt buộc'}</p>
+                              </div>
+                            </div>
+                          </div>
 
-                    <div className="bg-gradient-to-br from-purple-900/40 to-indigo-900/40 backdrop-blur-xl rounded-2xl p-8 border border-purple-500/30 hover:border-purple-500/50 transition-all group">
-                      <div className="w-12 h-12 bg-purple-500/20 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                        <Sparkles className="w-6 h-6 text-purple-400" />
-                      </div>
-                      <h3 className="text-xl font-bold text-white mb-4">Con Số May Mắn</h3>
-                      <div className="space-y-2">
-                        <p className="text-gray-300"><span className="text-purple-300 font-semibold">Số:</span> {dailyHoroscope.luckyNumber}</p>
-                        <p className="text-gray-300"><span className="text-purple-300 font-semibold">Màu:</span> {dailyHoroscope.luckyColor}</p>
+                          <Button
+                            type="submit"
+                            disabled={isDailyLoading || !user?.birth_time || !user?.birth_place}
+                            className="w-full bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-500 hover:to-orange-500 py-4 text-lg shadow-lg shadow-yellow-500/25"
+                          >
+                            {isDailyLoading ? (
+                              <>
+                                <LoadingSpinner size="sm" className="mr-2" />
+                                Đang xem tử vi...
+                              </>
+                            ) : (
+                              <>
+                                <Star className="w-5 h-5 mr-2" />
+                                Xem Tử Vi
+                              </>
+                            )}
+                          </Button>
+                        </form>
                       </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="space-y-6">
+                      <div className="flex justify-between items-center">
+                        <h2 className="text-2xl font-bold text-white">
+                          Tử Vi Ngày {new Date(dailyResult.date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                        </h2>
+                        <Button
+                          onClick={() => setDailyResult(null)}
+                          variant="secondary"
+                          size="sm"
+                        >
+                          <RotateCcw className="w-4 h-4 mr-2" />
+                          Xem ngày khác
+                        </Button>
+                      </div>
+
+                      <div className="bg-white/5 backdrop-blur-xl rounded-2xl p-8 border border-white/10">
+                        <div className="flex items-center mb-6">
+                          <Star className="w-6 h-6 text-yellow-400 mr-3" />
+                          <h3 className="text-xl font-bold text-white">Lời Giải Đoán</h3>
+                        </div>
+                        <FormattedContent content={dailyResult.analysis} className="text-gray-300 leading-relaxed space-y-4" />
+                      </div>
+                    </div>
+                  )}
                 </motion.div>
               )}
 

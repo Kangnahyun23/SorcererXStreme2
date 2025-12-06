@@ -7,6 +7,11 @@ interface FormattedContentProps {
 }
 
 export const FormattedContent = ({ content, className = '' }: FormattedContentProps) => {
+  // Kiểm tra content có tồn tại không
+  if (!content || typeof content !== 'string') {
+    return <div className={className}>Không có nội dung để hiển thị.</div>;
+  }
+
   // Parse content để tách các phần khác nhau
   const parseContent = (text: string) => {
     const lines = text.split('\n');

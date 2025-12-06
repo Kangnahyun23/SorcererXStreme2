@@ -15,7 +15,7 @@ import { TAROT_DECK, TarotCard } from '@/lib/tarotData';
 import * as THREE from 'three';
 
 // Types
-type ReadingMode = 'overview' | 'question' | 'love' | null;
+type ReadingMode = 'overview' | 'question' | null;
 type ReadingPhase = 'selection' | 'question_input' | 'shuffling' | 'picking' | 'reveal';
 
 // 3D Card Component
@@ -219,6 +219,8 @@ export default function TarotPage() {
   const [question, setQuestion] = useState('');
   const [aiAnalysis, setAiAnalysis] = useState<string>('');
   const [isLoadingAnalysis, setIsLoadingAnalysis] = useState(false);
+  const hasCalledApiRef = useRef(false); // Track để tránh gọi API nhiều lần
+  const isPickingCardRef = useRef(false); // Track để tránh pick nhiều cards cùng lúc
 
   const startReading = (mode: ReadingMode) => {
     setReadingMode(mode);
@@ -247,10 +249,16 @@ export default function TarotPage() {
   };
 
   const handleCardPick = async (index: number) => {
+    // Ngăn chọn card khi đang loading hoặc đang pick
+    if (isLoadingAnalysis || isPickingCardRef.current) return;
+    
     // Xác định số lá bài cần chọn dựa trên mode
     const requiredCards = readingMode === 'question' ? 1 : 3;
     
     if (selectedIndices.length >= requiredCards || selectedIndices.includes(index)) return;
+
+    // Set flag để prevent multiple picks
+    isPickingCardRef.current = true;
 
     const newIndices = [...selectedIndices, index];
     setSelectedIndices(newIndices);
@@ -265,60 +273,156 @@ export default function TarotPage() {
 
     // Khi đã chọn đủ số lá bài yêu cầu
     if (newIndices.length === requiredCards) {
+      // Reset ref khi bắt đầu reading mới
+      hasCalledApiRef.current = false;
+      
       setTimeout(async () => {
         setPhase('reveal');
-        await fetchTarotAnalysis(newSelectedCards);
+        
+        // Chỉ gọi API nếu chưa gọi lần nào
+        if (!hasCalledApiRef.current) {
+          hasCalledApiRef.current = true;
+          await fetchTarotAnalysis(newSelectedCards);
+        }
+        
+        // Reset picking flag after analysis
+        isPickingCardRef.current = false;
       }, 1500);
+    } else {
+      // Reset picking flag if not done yet
+      setTimeout(() => {
+        isPickingCardRef.current = false;
+      }, 500);
     }
   };
 
   const fetchTarotAnalysis = async (cards: (TarotCard & { isReversed: boolean })[]) => {
     if (!token || !user) return;
+    
+    // Ngăn gọi API nhiều lần
+    if (isLoadingAnalysis) return;
 
     setIsLoadingAnalysis(true);
 
     try {
       const featureType = readingMode === 'question' ? 'question' : 'overview';
       
+      // Xác định endpoint dựa vào feature_type
+      const endpoint = featureType === 'question' 
+        ? '/api/tarot/question' 
+        : '/api/tarot/overview';
+      
       const cardsDrawn = cards.map((card, index) => ({
         card_name: card.name,
         is_upright: !card.isReversed,
-        // Nếu là question mode (1 lá): position = "answer"
-        // Nếu là overview/love (3 lá): position = past/present/future
-        position: readingMode === 'question' 
-          ? 'answer' 
-          : (index === 0 ? 'past' : index === 1 ? 'present' : 'future')
+        // Position chỉ cần cho overview (3 lá)
+        ...(featureType === 'overview' && {
+          position: index === 0 ? 'past' : index === 1 ? 'present' : 'future'
+        })
       }));
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/tarot/reading`, {
+      const requestBody: any = {
+        domain: 'tarot',
+        feature_type: featureType,
+        user_context: {
+          name: user.name || 'User',
+          gender: user.gender || 'other',
+          birth_date: user.birth_date || '2000-01-01'
+        },
+        data: {
+          cards_drawn: cardsDrawn
+        }
+      };
+
+      // Thêm question nếu là question mode
+      if (featureType === 'question' && question) {
+        requestBody.data.question = question;
+      }
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}${endpoint}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          domain: 'tarot',
-          feature_type: featureType,
-          user_context: {
-            name: user.name || '',
-            gender: user.gender || 'other',
-            birth_date: user.birth_date || ''
-          },
-          data: {
-            question: question || null,
-            cards_drawn: cardsDrawn
-          }
-        }),
+        body: JSON.stringify(requestBody),
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        setAiAnalysis(data.analysis || data.reading || '');
-      } else {
-        console.error('Failed to fetch tarot analysis');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Tarot API error:', errorData);
+
+        if (response.status === 403 && errorData.error === 'LIMIT_REACHED') {
+          setAiAnalysis(
+            `⚠️ **Đã hết lượt sử dụng**\n\n` +
+            `Bạn đã dùng hết ${errorData.currentUsage}/${errorData.limit} lượt cho tính năng này.\n\n` +
+            `Nâng cấp lên **${errorData.tier === 'FREE' ? 'PREMIUM' : 'ULTIMATE'}** để tiếp tục sử dụng!`
+          );
+          setIsLoadingAnalysis(false);
+          return;
+        }
+
+        if (response.status === 500) {
+          const errorMsg = errorData.message || errorData.error || 'Internal server error';
+          setAiAnalysis(
+            `❌ **Lỗi 500 - Lỗi Server**\n\n` +
+            `${errorMsg}\n\n` +
+            `Backend đang gặp sự cố kết nối với AI Service. Vui lòng thử lại sau hoặc liên hệ admin.\n\n` +
+            `_Chi tiết: ${JSON.stringify(errorData, null, 2)}_`
+          );
+          setIsLoadingAnalysis(false);
+          return;
+        }
+
+        throw new Error(errorData.message || 'Không thể lấy phân tích tarot');
       }
-    } catch (error) {
+
+      const data = await response.json();
+      
+      // Backend trả về: { analysis: "string" } hoặc { analysis: { body: "string" } }
+      if (data.analysis) {
+        let analysisText = '';
+        
+        // Nếu analysis là object (Lambda response format)
+        if (typeof data.analysis === 'object') {
+          // Lambda trả về { statusCode, headers, body }
+          if (data.analysis.body) {
+            // Body là string JSON, cần parse
+            try {
+              const bodyData = typeof data.analysis.body === 'string' 
+                ? JSON.parse(data.analysis.body) 
+                : data.analysis.body;
+              
+              // Lấy answer từ bodyData
+              analysisText = bodyData.answer || bodyData.analysis || bodyData.message || JSON.stringify(bodyData, null, 2);
+            } catch (e) {
+              // Nếu parse lỗi, dùng body trực tiếp
+              analysisText = data.analysis.body;
+            }
+          }
+          // Fallback: thử các field khác
+          else if (data.analysis.data) {
+            analysisText = data.analysis.data;
+          }
+          else if (data.analysis.message) {
+            analysisText = data.analysis.message;
+          }
+          else {
+            analysisText = JSON.stringify(data.analysis, null, 2);
+          }
+        } else {
+          // analysis is already a string
+          analysisText = data.analysis;
+        }
+        
+        setAiAnalysis(analysisText);
+      } else {
+        console.error('No analysis found in response:', data);
+        setAiAnalysis('AI không trả lời được. Vui lòng thử lại.');
+      }
+    } catch (error: any) {
       console.error('Error fetching tarot analysis:', error);
+      setAiAnalysis(`❌ Lỗi: ${error.message || 'Không thể kết nối với server'}`);
     } finally {
       setIsLoadingAnalysis(false);
     }
@@ -333,6 +437,8 @@ export default function TarotPage() {
     setQuestion('');
     setAiAnalysis('');
     setIsLoadingAnalysis(false);
+    hasCalledApiRef.current = false; // Reset ref
+    isPickingCardRef.current = false; // Reset picking flag
   };
 
   if (!isAuthenticated) return null;
@@ -377,12 +483,43 @@ export default function TarotPage() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
-                className="absolute inset-0 flex items-center justify-center p-8"
+                className="absolute inset-0 flex flex-col items-center justify-center p-8"
               >
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl w-full">
+                {/* Hero Section */}
+                <div className="text-center mb-12 max-w-3xl">
+                  <motion.div
+                    initial={{ opacity: 0, y: -20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.2 }}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-purple-500/10 border border-purple-500/20 mb-6"
+                  >
+                    <Sparkles className="w-4 h-4 text-purple-400" />
+                    <span className="text-sm font-medium text-purple-300">Khám Phá Vận Mệnh</span>
+                  </motion.div>
+                  <motion.h1
+                    initial={{ opacity: 0, y: -20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.3 }}
+                    className="text-5xl md:text-6xl font-bold mb-4 bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400 bg-clip-text text-transparent"
+                  >
+                    Bói Bài Tarot
+                  </motion.h1>
+                  <motion.p
+                    initial={{ opacity: 0, y: -20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.4 }}
+                    className="text-lg text-gray-400 leading-relaxed"
+                  >
+                    Để AI giải mã thông điệp từ vũ trụ qua các lá bài Tarot bí ẩn.<br />
+                    Chọn phương thức bạn muốn và bắt đầu hành trình khám phá.
+                  </motion.p>
+                </div>
+
+                {/* Cards - Centered and Larger */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl w-full">
                   {/* Daily Reading */}
                   <ReadingOption
-                    icon={<BookOpen className="w-8 h-8 text-white" />}
+                    icon={<BookOpen className="w-10 h-10 text-white" />}
                     title="Tổng Quan Ngày Mới"
                     desc="Xem vận mệnh, công việc và tình cảm trong ngày của bạn qua 3 lá bài."
                     color="purple"
@@ -390,21 +527,34 @@ export default function TarotPage() {
                   />
                   {/* Question Reading */}
                   <ReadingOption
-                    icon={<Search className="w-8 h-8 text-white" />}
+                    icon={<Search className="w-10 h-10 text-white" />}
                     title="Hỏi Đáp Cụ Thể"
                     desc="Đặt một câu hỏi cụ thể và nhận lời khuyên từ những lá bài Tarot."
                     color="blue"
                     onClick={() => startReading('question')}
                   />
-                  {/* Love Reading */}
-                  <ReadingOption
-                    icon={<Heart className="w-8 h-8 text-white" />}
-                    title="Bói Tình Yêu"
-                    desc="Khám phá chuyện tình cảm, mối quan hệ và tương lai lứa đôi."
-                    color="pink"
-                    onClick={() => startReading('love')}
-                  />
                 </div>
+
+                {/* Decorative Elements */}
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.6 }}
+                  className="mt-12 flex items-center gap-8 text-sm text-gray-500"
+                >
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-purple-500 animate-pulse" />
+                    <span>78 Lá Bài</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" style={{ animationDelay: '0.5s' }} />
+                    <span>AI Phân Tích</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-pink-500 animate-pulse" style={{ animationDelay: '1s' }} />
+                    <span>Kết Quả Chính Xác</span>
+                  </div>
+                </motion.div>
               </motion.div>
             )}
 
@@ -546,12 +696,6 @@ export default function TarotPage() {
                               {/* @ts-ignore */}
                               {card.isReversed ? card.meaning.reversed : card.meaning.upright}
                             </div>
-                            {readingMode === 'love' && (
-                              <div className="p-3 bg-pink-500/10 rounded-lg border border-pink-500/20">
-                                <span className="text-pink-400 font-semibold block mb-1 uppercase text-xs tracking-wider">Tình yêu</span>
-                                {card.meaning.love}
-                              </div>
-                            )}
                             {readingMode === 'overview' && (
                               <div className="p-3 bg-blue-500/10 rounded-lg border border-blue-500/20">
                                 <span className="text-blue-400 font-semibold block mb-1 uppercase text-xs tracking-wider">Công việc</span>
@@ -612,28 +756,73 @@ export default function TarotPage() {
 
 const ReadingOption = ({ icon, title, desc, color, onClick }: any) => {
   const colorMap: any = {
-    purple: "from-purple-500 to-indigo-500 hover:border-purple-500/50 shadow-purple-500/30 text-purple-300",
-    blue: "from-blue-500 to-cyan-500 hover:border-blue-500/50 shadow-blue-500/30 text-blue-300",
-    pink: "from-pink-500 to-rose-500 hover:border-pink-500/50 shadow-pink-500/30 text-pink-300"
+    purple: {
+      gradient: "from-purple-500 to-indigo-600",
+      border: "border-purple-500/20 hover:border-purple-500/50",
+      shadow: "shadow-lg shadow-purple-500/20 hover:shadow-2xl hover:shadow-purple-500/40",
+      text: "text-purple-300",
+      glow: "group-hover:shadow-[0_0_50px_rgba(168,85,247,0.3)]"
+    },
+    blue: {
+      gradient: "from-blue-500 to-cyan-600",
+      border: "border-blue-500/20 hover:border-blue-500/50",
+      shadow: "shadow-lg shadow-blue-500/20 hover:shadow-2xl hover:shadow-blue-500/40",
+      text: "text-blue-300",
+      glow: "group-hover:shadow-[0_0_50px_rgba(59,130,246,0.3)]"
+    },
+    pink: {
+      gradient: "from-pink-500 to-rose-600",
+      border: "border-pink-500/20 hover:border-pink-500/50",
+      shadow: "shadow-lg shadow-pink-500/20 hover:shadow-2xl hover:shadow-pink-500/40",
+      text: "text-pink-300",
+      glow: "group-hover:shadow-[0_0_50px_rgba(236,72,153,0.3)]"
+    }
   };
+
+  const colors = colorMap[color];
 
   return (
     <motion.div
-      whileHover={{ scale: 1.05, translateY: -10 }}
-      className={`group relative bg-white/5 backdrop-blur-xl rounded-3xl p-8 border border-white/10 transition-all cursor-pointer overflow-hidden ${colorMap[color].split(' ')[2]}`}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      whileHover={{ scale: 1.03, translateY: -8 }}
+      whileTap={{ scale: 0.98 }}
+      className={`group relative bg-gradient-to-br from-white/5 to-white/10 backdrop-blur-xl rounded-3xl p-10 border ${colors.border} ${colors.shadow} ${colors.glow} transition-all duration-500 cursor-pointer overflow-hidden`}
       onClick={onClick}
     >
-      <div className={`absolute inset-0 bg-gradient-to-br ${colorMap[color].split(' ')[0]} opacity-0 group-hover:opacity-10 transition-opacity duration-500`} />
-      <div className="relative z-10">
-        <div className={`w-16 h-16 bg-gradient-to-br ${colorMap[color].split(' ')[0]} ${colorMap[color].split(' ')[1]} rounded-2xl flex items-center justify-center mb-6 shadow-lg ${colorMap[color].split(' ')[3]}`}>
+      {/* Animated Background Gradient */}
+      <div className={`absolute inset-0 bg-gradient-to-br ${colors.gradient} opacity-0 group-hover:opacity-20 transition-opacity duration-700`} />
+      
+      {/* Shine Effect */}
+      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+        <div className="absolute top-0 -left-full h-full w-1/2 bg-gradient-to-r from-transparent via-white/10 to-transparent group-hover:animate-[shine_1.5s_ease-in-out] skew-x-12" />
+      </div>
+
+      <div className="relative z-10 flex flex-col h-full">
+        {/* Icon */}
+        <div className={`w-20 h-20 bg-gradient-to-br ${colors.gradient} rounded-2xl flex items-center justify-center mb-6 shadow-xl ${colors.shadow} group-hover:scale-110 transition-transform duration-300`}>
           {icon}
         </div>
-        <h3 className="text-2xl font-bold text-white mb-3">{title}</h3>
-        <p className="text-gray-400 mb-6">{desc}</p>
-        <div className={`flex items-center font-medium ${colorMap[color].split(' ')[4]}`}>
-          Bắt đầu ngay <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
+        
+        {/* Title */}
+        <h3 className="text-3xl font-bold text-white mb-4 group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-white group-hover:to-gray-300 transition-all duration-300">
+          {title}
+        </h3>
+        
+        {/* Description */}
+        <p className="text-gray-400 text-base leading-relaxed mb-6 flex-grow">
+          {desc}
+        </p>
+        
+        {/* CTA */}
+        <div className={`flex items-center justify-between font-semibold ${colors.text} group-hover:gap-3 transition-all duration-300`}>
+          <span>Bắt đầu ngay</span>
+          <ArrowRight className="w-5 h-5 group-hover:translate-x-2 transition-transform duration-300" />
         </div>
       </div>
+
+      {/* Corner Accent */}
+      <div className={`absolute top-4 right-4 w-12 h-12 rounded-full bg-gradient-to-br ${colors.gradient} opacity-10 blur-xl group-hover:opacity-30 transition-opacity duration-500`} />
     </motion.div>
   );
 };

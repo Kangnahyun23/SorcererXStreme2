@@ -4,7 +4,6 @@ import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { Sparkles, Star, Moon, Sun, ArrowRight, Zap, Shield, Heart } from 'lucide-react';
 import { Header } from '@/components/layout/Header';
-import { Footer } from '@/components/layout/Footer';
 import { AnimatedBackground } from '@/components/ui/AnimatedBackground';
 
 export default function LandingPage() {
@@ -34,12 +33,13 @@ export default function LandingPage() {
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ duration: 0.8, delay: 0.2 }}
-                            className="text-5xl md:text-7xl lg:text-8xl font-bold mb-8 tracking-tight"
+                            className="text-5xl md:text-7xl lg:text-8xl font-bold mb-8 tracking-tight leading-tight"
+                            style={{ lineHeight: '1.2' }}
                         >
-                            <span className="block bg-clip-text text-transparent bg-gradient-to-b from-white to-white/60">
+                            <span className="block bg-clip-text text-transparent bg-gradient-to-b from-white to-white/60 pb-2">
                                 Giải Mã Bí Ẩn
                             </span>
-                            <span className="block bg-clip-text text-transparent bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400 mt-2">
+                            <span className="block bg-clip-text text-transparent bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400 mt-4 pt-2">
                                 Vũ Trụ & Bản Thân
                             </span>
                         </motion.h1>
@@ -107,21 +107,21 @@ export default function LandingPage() {
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                             {[
                                 {
-                                    title: "Tarot AI",
+                                    title: "Tarot",
                                     desc: "Trải nghiệm bói bài Tarot với AI, giải mã thông điệp từ vũ trụ một cách chính xác và sâu sắc.",
                                     icon: <Sparkles className="w-6 h-6 text-purple-400" />,
                                     color: "from-purple-500/20 to-blue-500/20",
                                     href: "/tarot"
                                 },
                                 {
-                                    title: "Bản Đồ Sao",
+                                    title: "Chiêm Tinh",
                                     desc: "Khám phá bản đồ sao cá nhân, hiểu rõ tính cách và tiềm năng ẩn giấu qua vị trí các vì sao.",
                                     icon: <Star className="w-6 h-6 text-blue-400" />,
                                     color: "from-blue-500/20 to-cyan-500/20",
                                     href: "/astrology"
                                 },
                                 {
-                                    title: "Tử Vi Trọn Đời",
+                                    title: "Tử Vi",
                                     desc: "Luận giải lá số tử vi chi tiết, dự đoán vận mệnh, công danh, tình duyên theo từng giai đoạn.",
                                     icon: <Moon className="w-6 h-6 text-yellow-400" />,
                                     color: "from-yellow-500/20 to-orange-500/20",
@@ -214,17 +214,15 @@ export default function LandingPage() {
                                         </div>
                                     </div>
                                     <p className="text-gray-300 italic mb-6">
-                                        "Tôi thực sự bất ngờ với độ chính xác của Tarot AI. Những lời khuyên rất thực tế và giúp tôi giải tỏa được nhiều căng thẳng trong công việc. Giao diện web cũng rất đẹp và dễ sử dụng!"
+                                        "Tôi thực sự bất ngờ với độ chính xác của Tarot. Những lời khuyên rất thực tế và giúp tôi giải tỏa được nhiều căng thẳng trong công việc. Giao diện web cũng rất đẹp và dễ sử dụng!"
                                     </p>
-                                    <div className="text-sm text-gray-500">Đã trải nghiệm Tarot AI • 2 ngày trước</div>
+                                    <div className="text-sm text-gray-500">Đã trải nghiệm Tarot • 2 ngày trước</div>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </section>
             </main>
-
-            <Footer />
         </div>
     );
 }

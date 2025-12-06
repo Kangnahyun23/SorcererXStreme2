@@ -3,7 +3,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Bot, User, Sparkles } from 'lucide-react';
+import { Send, Bot, User, Sparkles, RefreshCw } from 'lucide-react';
 import { Sidebar, useSidebarCollapsed } from '@/components/layout/Sidebar';
 import { useAuthStore, useChatStore, ChatMessage } from '@/lib/store';
 import { useUserContext } from '@/lib/user-context';
@@ -23,7 +23,7 @@ export default function ChatPage() {
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { user, isAuthenticated, token } = useAuthStore();
-  const { messages, isLoading, addMessage, setLoading, sessionId, setSessionId } = useChatStore();
+  const { messages, isLoading, addMessage, setLoading, sessionId, setSessionId, clearMessages } = useChatStore();
   const userContext = useUserContext();
 
   const scrollToBottom = () => {
@@ -60,6 +60,35 @@ export default function ChatPage() {
     initSession();
   }, [sessionId, token, setSessionId]);
 
+  const handleRefresh = async () => {
+    if (isLoading) return;
+    
+    // Clear messages
+    clearMessages();
+    
+    // Reset session (dùng empty string thay vì null)
+    setSessionId('');
+    
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_CHAT_SERVICE_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/chat/new-session`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setSessionId(data.sessionId || data.session_id);
+        toast.success('Đã làm mới cuộc trò chuyện!');
+      }
+    } catch (error) {
+      console.error('Failed to refresh session:', error);
+      toast.error('Không thể làm mới, vui lòng thử lại');
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isLoading || !sessionId) return;
@@ -75,40 +104,126 @@ export default function ChatPage() {
     setLoading(true);
 
     try {
-      const { token } = useAuthStore.getState();
+      const { token, user } = useAuthStore.getState();
+      const apiUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/chat`;
+      
+      // Chuẩn bị user_context từ user profile với validation
+      const requestBody = {
+        domain: "chatbot",
+        feature_type: "question",
+        user_context: {
+          name: user?.name || "User",
+          gender: user?.gender || "other",
+          birth_date: user?.birth_date || "2000-01-01",
+          birth_time: user?.birth_time || "12:00",
+          birth_place: user?.birth_place || "Việt Nam"
+        },
+        data: {
+          sessionId: sessionId,
+          question: userMessage
+        }
+      };
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/chat/message`, {
+      console.log('Sending chat request:', { ...requestBody, token: '***' });
+
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          sessionId,
-          message: userMessage
-        }),
+        body: JSON.stringify(requestBody),
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        // Backend đang maintenance nên chỉ hiển thị thông báo
-        if (data.note) {
-          addMessage({
-            content: data.note,
-            role: 'assistant'
-          });
-        } else if (data.response) {
-          addMessage({
-            content: data.response,
-            role: 'assistant'
-          });
+      console.log('Chat response status:', response.status);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Chat API error:', errorData);
+        
+        if (response.status === 401) {
+          toast.error('Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.');
+          return;
+        } else if (response.status === 429) {
+          toast.error('Bạn đã hỏi quá nhiều. Vui lòng thử lại sau.');
+          return;
+        } else if (response.status === 403) {
+          toast.error('Bạn đã hết lượt sử dụng. Vui lòng nâng cấp VIP.');
+          return;
+        } else if (response.status === 500) {
+          const errorMsg = errorData.message || errorData.error || 'Lỗi server';
+          toast.error(`Lỗi server: ${errorMsg}`);
+          
+          // Hiển thị chi tiết lỗi trong development mode
+          if (process.env.NODE_ENV === 'development') {
+            addMessage({
+              content: `❌ **Lỗi 500 - Internal Server Error**\n\n${errorMsg}\n\nChi tiết: ${JSON.stringify(errorData, null, 2)}`,
+              role: 'assistant'
+            });
+          }
+          return;
         }
-      } else {
-        toast.error('Không thể lấy được phản hồi từ AI');
+        
+        throw new Error(errorData.message || errorData.error || 'Không thể lấy phản hồi từ AI');
       }
-    } catch (error) {
-      console.error(error);
-      toast.error('Có lỗi xảy ra khi kết nối với AI');
+
+      const responseData = await response.json();
+      console.log('Chat response data:', responseData);
+      
+      // Xử lý response từ backend
+      let aiAnswer = null;
+      
+      // Backend trả về: { data: "string" } - data là STRING trực tiếp
+      if (responseData.data && typeof responseData.data === 'string') {
+        aiAnswer = responseData.data;
+      }
+      // Nếu data là object có reply/answer
+      else if (responseData.data && typeof responseData.data === 'object') {
+        aiAnswer = responseData.data.reply || responseData.data.answer || responseData.data.message;
+      }
+      // Lambda proxy format
+      else if (responseData.body && typeof responseData.body === 'string') {
+        try {
+          const parsedBody = JSON.parse(responseData.body);
+          aiAnswer = parsedBody.reply || parsedBody.answer || parsedBody.message || parsedBody.data;
+        } catch (parseError) {
+          console.error('Failed to parse response body:', parseError);
+          aiAnswer = responseData.body;
+        }
+      }
+      // Direct response format
+      else {
+        aiAnswer = responseData.reply || responseData.answer || responseData.message;
+      }
+      
+      console.log('Extracted AI answer:', aiAnswer);
+      
+      if (aiAnswer) {
+        // Đảm bảo content là string
+        const content = typeof aiAnswer === 'string' 
+          ? aiAnswer 
+          : JSON.stringify(aiAnswer, null, 2);
+        
+        addMessage({
+          content: content,
+          role: 'assistant'
+        });
+      } else {
+        console.error('No AI answer found in response:', responseData);
+        toast.error('AI không trả lời được. Vui lòng thử lại hoặc hỏi câu khác.');
+      }
+    } catch (error: any) {
+      console.error('Chat error:', error);
+      const errorMessage = error.message || 'Có lỗi xảy ra khi kết nối với AI';
+      toast.error(errorMessage);
+      
+      // Thêm error message vào chat nếu cần debug
+      if (process.env.NODE_ENV === 'development') {
+        addMessage({
+          content: `❌ Lỗi: ${errorMessage}`,
+          role: 'assistant'
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -129,17 +244,30 @@ export default function ChatPage() {
       >
         {/* Header */}
         <div className="bg-black/20 backdrop-blur-xl border-b border-white/10 p-6">
-          <div className="flex items-center space-x-4">
-            <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/20 border border-white/10 relative overflow-hidden group">
-              <div className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity" />
-              <Bot className="w-6 h-6 text-white relative z-10" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/20 border border-white/10 relative overflow-hidden group">
+                <div className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity" />
+                <Bot className="w-6 h-6 text-white relative z-10" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold bg-gradient-to-r from-white via-blue-200 to-white bg-clip-text text-transparent" style={{ fontFamily: 'Pacifico, cursive' }}>
+                  AI Chat Huyền Thuật
+                </h1>
+                <p className="text-sm text-gray-400 font-light">Trò chuyện với AI về thế giới bí ẩn</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-white via-blue-200 to-white bg-clip-text text-transparent" style={{ fontFamily: 'Pacifico, cursive' }}>
-                AI Chat Huyền Thuật
-              </h1>
-              <p className="text-sm text-gray-400 font-light">Trò chuyện với AI về thế giới bí ẩn</p>
-            </div>
+            
+            {/* Refresh Button */}
+            <button
+              onClick={handleRefresh}
+              disabled={isLoading}
+              className="flex items-center gap-2 px-4 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed group"
+              title="Làm mới cuộc trò chuyện"
+            >
+              <RefreshCw className={`w-4 h-4 text-blue-400 transition-transform duration-300 group-hover:rotate-180 ${isLoading ? 'animate-spin' : ''}`} />
+              <span className="text-sm font-medium text-gray-300">Làm mới</span>
+            </button>
           </div>
         </div>
 

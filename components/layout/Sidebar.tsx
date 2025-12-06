@@ -109,8 +109,8 @@ export const Sidebar = () => {
   });
   const [isMobile, setIsMobile] = useState(false);
 
-  // Check if user is VIP
-  const isVIP = user?.vipTier === VIPTier.VIP || user?.vipTier === 'VIP';
+  // Check if user is VIP - check both is_vip flag and vipTier
+  const isVIP = user?.is_vip === true || user?.vipTier === VIPTier.VIP || user?.vipTier === 'VIP' || user?.vipTier === 'PREMIUM' || user?.vipTier === 'ULTIMATE';
   const vipExpiresAt = user?.vipExpiresAt ? new Date(user.vipExpiresAt) : null;
 
   useEffect(() => {

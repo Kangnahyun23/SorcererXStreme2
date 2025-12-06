@@ -31,7 +31,8 @@ export default function ForgotPasswordPage() {
 
     setIsLoading(true);
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'https://w3l0qc4g2h.execute-api.ap-southeast-1.amazonaws.com/dev'}/api/auth/forgot-password`, {
+      // Gọi backend API để xử lý forgot password
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/forgot-password`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -43,11 +44,12 @@ export default function ForgotPasswordPage() {
         setIsEmailSent(true);
         toast.success('Email khôi phục mật khẩu đã được gửi!');
       } else {
-        const error = await response.json();
+        const error = await response.json().catch(() => ({ message: 'Có lỗi xảy ra' }));
         toast.error(error.message || 'Có lỗi xảy ra, vui lòng thử lại');
       }
-    } catch (error) {
-      toast.error('Có lỗi xảy ra, vui lòng thử lại');
+    } catch (error: any) {
+      console.error('Forgot password error:', error);
+      toast.error('Không thể kết nối đến server');
     } finally {
       setIsLoading(false);
     }

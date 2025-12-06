@@ -34,16 +34,16 @@ export const Footer = () => {
                         <h3 className="text-white font-bold text-lg mb-6">Khám Phá</h3>
                         <ul className="space-y-3">
                             <li>
-                                <Link href="/tarot" className="text-gray-400 hover:text-purple-400 transition-colors text-sm">Tarot AI</Link>
+                                <Link href="/tarot" className="text-gray-400 hover:text-purple-400 transition-colors text-sm">Tarot</Link>
                             </li>
                             <li>
-                                <Link href="/astrology" className="text-gray-400 hover:text-purple-400 transition-colors text-sm">Bản Đồ Sao</Link>
+                                <Link href="/astrology" className="text-gray-400 hover:text-purple-400 transition-colors text-sm">Chiêm Tinh</Link>
                             </li>
                             <li>
                                 <Link href="/numerology" className="text-gray-400 hover:text-purple-400 transition-colors text-sm">Thần Số Học</Link>
                             </li>
                             <li>
-                                <Link href="/fortune" className="text-gray-400 hover:text-purple-400 transition-colors text-sm">Tử Vi Trọn Đời</Link>
+                                <Link href="/fortune" className="text-gray-400 hover:text-purple-400 transition-colors text-sm">Tử Vi</Link>
                             </li>
                         </ul>
                     </div>
