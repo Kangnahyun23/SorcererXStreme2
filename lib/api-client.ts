@@ -27,7 +27,7 @@ async function apiRequest(endpoint: string, options: RequestOptions = {}) {
   }
 
   const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
-  
+
   if (!response.ok) {
     const error = await response.json().catch(() => ({ message: 'Request failed' }));
     throw new Error(error.message || 'Request failed');
@@ -191,10 +191,10 @@ export const horoscopeApi = {
     };
   }, token: string) => {
     // Xác định endpoint dựa vào feature_type
-    const endpoint = data.feature_type === 'daily' 
-      ? '/api/horoscope/daily' 
+    const endpoint = data.feature_type === 'daily'
+      ? '/api/horoscope/daily'
       : '/api/horoscope/natal';
-    
+
     return apiRequest(endpoint, {
       method: 'POST',
       body: data,
@@ -230,8 +230,13 @@ export const reminderApi = {
     apiRequest('/api/reminders', { token }),
 
   update: (data: {
-    is_subscribed: boolean;
-    frequency?: string;
+    emailEnabled?: boolean;
+    email?: string;
+    dailyHoroscope?: boolean;
+    weeklyFortune?: boolean;
+    monthlyInsight?: boolean;
+    reminderTime?: string;
+    timezone?: string;
   }, token: string) =>
     apiRequest('/api/reminders', {
       method: 'PATCH',

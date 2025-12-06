@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import toast from 'react-hot-toast';
 import { AnimatedBackground } from '@/components/ui/AnimatedBackground';
+import { ReminderSettings } from '@/components/profile/ReminderSettings';
 
 const genderTypes = [
   { value: 'male', label: 'Nam', icon: User, color: 'text-blue-400' },
@@ -43,25 +44,25 @@ export default function ProfilePage() {
   useEffect(() => {
     const loadProfile = async () => {
       if (!token || !isAuthenticated) return;
-      
+
       try {
         const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/users/profile`, {
           headers: {
             'Authorization': `Bearer ${token}`,
           },
         });
-        
+
         if (response.ok) {
           const userData = await response.json();
           console.log('[Profile] Loaded user data from backend:', userData);
-          
+
           // Update store with fresh data from backend, preserving existing fields
           const currentUser = useAuthStore.getState().user;
-          
+
           // Map snake_case to camelCase and remove snake_case fields
           const { vip_tier, vip_expires_at, birth_date, birth_time, birth_place, ...otherData } = userData;
-          
-          useAuthStore.setState({ 
+
+          useAuthStore.setState({
             user: {
               ...currentUser, // Preserve existing fields
               ...otherData,   // Spread other fields (already in correct format)
@@ -79,7 +80,7 @@ export default function ProfilePage() {
         console.error('Failed to load profile:', error);
       }
     };
-    
+
     loadProfile();
   }, [token, isAuthenticated]);
 
@@ -220,7 +221,7 @@ export default function ProfilePage() {
       <AnimatedBackground />
       <Sidebar />
 
-      <main 
+      <main
         className="flex-1 flex flex-col transition-all duration-200 relative z-10"
         style={{ marginLeft: sidebarCollapsed ? '80px' : '280px' }}
       >
@@ -426,7 +427,7 @@ export default function ProfilePage() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
-              className="bg-white/5 backdrop-blur-xl rounded-3xl p-8 border border-white/10 shadow-xl relative overflow-hidden"
+              className="bg-white/5 backdrop-blur-xl rounded-3xl p-8 border border-white/10 shadow-xl relative overflow-hidden mb-8"
             >
               <div className="absolute bottom-0 left-0 w-64 h-64 bg-pink-500/10 rounded-full blur-3xl -ml-32 -mb-32" />
 
@@ -599,6 +600,9 @@ export default function ProfilePage() {
                 </div>
               )}
             </motion.div>
+
+            {/* Reminder Settings */}
+            <ReminderSettings />
 
             {/* Instructions */}
             <motion.div
