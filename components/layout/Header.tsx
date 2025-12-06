@@ -2,12 +2,14 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence, useScroll } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { Menu, X, User, LogOut, LayoutDashboard, Settings, ChevronDown, Sparkles, Search } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
 
 export const Header = () => {
+    const router = useRouter();
     const [isScrolled, setIsScrolled] = useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
@@ -59,6 +61,7 @@ export const Header = () => {
         logout();
         setIsUserMenuOpen(false);
         setIsMobileMenuOpen(false);
+        router.push('/auth/login');
     };
 
     return (

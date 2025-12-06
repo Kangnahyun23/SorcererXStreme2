@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   Home,
   MessageCircle,
@@ -98,6 +98,7 @@ const navigationItems = [
 
 export const Sidebar = () => {
   const pathname = usePathname();
+  const router = useRouter();
   const { user, logout } = useAuthStore();
   const [isCollapsed, setIsCollapsed] = useState(() => {
     // Initialize from localStorage or default to false
@@ -135,7 +136,7 @@ export const Sidebar = () => {
 
   const handleLogout = () => {
     logout();
-    window.location.href = '/auth/login';
+    router.push('/auth/login');
   };
 
   const toggleSidebar = () => {
