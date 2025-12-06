@@ -208,7 +208,7 @@ export default function ComprehensiveFortunePage() {
       console.error('[Comprehensive Fortune] Error:', error);
       
       if (error.message && error.message.includes('LIMIT_REACHED')) {
-        toast.warning('Đã hết lượt sử dụng');
+        toast.error('Đã hết lượt sử dụng');
         setAnalysis(`⚠️ **Đã hết lượt sử dụng**\n\n` +
           `Bạn đã hết lượt xem lá số Tử Vi.\n\n` +
           `Nâng cấp lên **PREMIUM** hoặc **ULTIMATE** để tiếp tục!`);
