@@ -22,6 +22,7 @@ interface AuthState {
   token: string | null;
   login: (email: string, password: string) => Promise<boolean>;
   register: (email: string, password: string) => Promise<boolean>;
+  confirmRegistration: (email: string, code: string) => Promise<boolean>;
   completeProfile: (name: string, gender: string, birth_date: string, birth_time: string, birth_place: string, token: string) => Promise<void>;
   updateProfile: (name: string, birthDate: string, birthTime: string, birthPlace: string, token: string) => Promise<void>;
   logout: () => void;
@@ -37,18 +38,40 @@ export const useAuthStore = create<AuthState>()(
 
       login: async (email, password) => {
         try {
+          // authApi.login now returns { token, user: { email } } using Amplify
           const { token, user } = await authApi.login(email, password);
 
           // Cookie fallback
           document.cookie = `token=${token}; path=/; max-age=604800;`;
-          const isProfileComplete = !!(user.name && user.birth_date && user.birth_time && user.birth_place);
+
+          // Fetch full profile from backend to get name, birthdate etc.
+          // The initial login only returns email from Cognito
+          let fullUser: any = { ...user, isProfileComplete: false };
+          try {
+            // Try to fetch profile from backend using the new token
+            const profile = await profileApi.get(token);
+            if (profile) {
+              fullUser = { ...fullUser, ...profile };
+            }
+          } catch (e) {
+            // Ignore profile fetch error on first login
+            console.log('Profile fetch failed or empty', e);
+          }
+
+          const isProfileComplete = !!(fullUser.name && fullUser.birth_date && fullUser.birth_time && fullUser.birth_place);
 
           // Map snake_case from backend to camelCase for frontend
-          const mappedUser = {
-            ...user,
+          const mappedUser: User = {
+            id: fullUser.id || 'temp-id',
+            email: fullUser.email,
+            name: fullUser.name,
+            gender: fullUser.gender,
+            birth_date: fullUser.birth_date,
+            birth_time: fullUser.birth_time,
+            birth_place: fullUser.birth_place,
             isProfileComplete,
-            vipTier: user.vip_tier,
-            vipExpiresAt: user.vip_expires_at,
+            vipTier: fullUser.vip_tier,
+            vipExpiresAt: fullUser.vip_expires_at,
           };
 
           set({ user: mappedUser, isAuthenticated: true, token });
@@ -61,17 +84,48 @@ export const useAuthStore = create<AuthState>()(
 
       register: async (email: string, password: string) => {
         try {
-          const { token, user } = await authApi.register(email, password);
+          // authApi.register now handles Cognito signUp + Backend Sync
+          await authApi.register(email, password);
 
-          // Save token and user after successful registration
-          const mappedUser = {
-            ...user,
-            isProfileComplete: false, // New registration has incomplete profile
-            vipTier: user.vip_tier,
-            vipExpiresAt: user.vip_expires_at,
-          };
+          // After registration, we usually need to confirm email (Cognito Code).
+          // For now, we assume we might need to login or show a verification Code screen.
+          // BUT, to keep existing flow simple (as requested), we will attempt to login immediately 
+          // IF the user is confirmed (e.g. if auto-confirm is on). 
+          // If not confirmed, this login might fail. 
 
-          set({ user: mappedUser, isAuthenticated: true, token });
+          // However, the previous logic logged the user in. 
+          // If we can't login yet (need verification), we should return true but NOT set state,
+          // prompting the UI to ask for verification.
+
+          // For simplicity in this step: We return true, letting the user try to login manually
+          // or we try to login automatically.
+
+          // Let's try to login automatically to match previous UX
+          try {
+            const { token, user } = await authApi.login(email, password);
+
+            const mappedUser: User = {
+              id: 'temp-id',
+              email: user.email,
+              isProfileComplete: false
+            };
+
+            set({ user: mappedUser, isAuthenticated: true, token });
+          } catch (e) {
+            console.log('Auto-login failed, likely needs verification', e);
+            // Return true so UI shows "Success" message, but user is not authenticated yet
+          }
+
+          return true;
+        } catch (error) {
+          console.error(error);
+          return false;
+        }
+      },
+
+      confirmRegistration: async (email: string, code: string) => {
+        try {
+          await authApi.confirmSignUp(email, code);
           return true;
         } catch (error) {
           console.error(error);

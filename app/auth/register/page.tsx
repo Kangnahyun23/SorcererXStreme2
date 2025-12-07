@@ -17,10 +17,13 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const { register } = useAuthStore();
+  const [step, setStep] = useState<'register' | 'verify'>('register');
+  const [verificationCode, setVerificationCode] = useState('');
+
+  const { register, confirmRegistration, login } = useAuthStore();
   const router = useRouter();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!email || !password || !confirmPassword) {
@@ -42,13 +45,42 @@ export default function RegisterPage() {
     try {
       const success = await register(email, password);
       if (success) {
-        toast.success('Đăng ký thành công!');
-        router.push('/auth/login');
+        toast.success('Đăng ký thành công! Vui lòng kiểm tra email để lấy mã xác nhận.');
+        setStep('verify');
       } else {
         toast.error('Đăng ký thất bại, vui lòng thử lại');
       }
     } catch (error) {
       toast.error('Có lỗi xảy ra, vui lòng thử lại');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!verificationCode) {
+      toast.error('Vui lòng nhập mã xác nhận');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const success = await confirmRegistration(email, verificationCode);
+      if (success) {
+        toast.success('Xác thực thành công! Đang đăng nhập...');
+        // Auto login after verification
+        const loginSuccess = await login(email, password);
+        if (loginSuccess) {
+          router.push('/auth/setup'); // Redirect to Setup Page first
+        } else {
+          router.push('/auth/login');
+        }
+      } else {
+        toast.error('Mã xác nhận không đúng hoặc đã hết hạn');
+      }
+    } catch (error) {
+      toast.error('Xác thực thất bại');
     } finally {
       setIsLoading(false);
     }
@@ -122,109 +154,164 @@ export default function RegisterPage() {
               transition={{ delay: 0.4 }}
               className="text-gray-400 text-sm mt-2 font-light tracking-wide"
             >
-              Khởi đầu hành trình huyền bí
+              {step === 'register' ? 'Khởi đầu hành trình huyền bí' : 'Xác thực tài khoản của bạn'}
             </motion.p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5 relative">
-            <motion.div
-              initial={{ x: -20, opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
-              transition={{ delay: 0.5 }}
-              className="group relative"
-            >
-              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-red-400 transition-colors duration-300">
-                <Mail size={20} />
-              </div>
-              <input
-                type="email"
-                placeholder="Email của bạn"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-xl py-4 pl-12 pr-4 text-white placeholder-gray-500 focus:outline-none focus:border-red-500/50 focus:bg-white/10 transition-all duration-300"
-                disabled={isLoading}
-              />
-              <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-red-500/20 to-orange-500/20 opacity-0 group-focus-within:opacity-100 pointer-events-none transition-opacity duration-500 -z-10 blur-sm" />
-            </motion.div>
-
-            <motion.div
-              initial={{ x: -20, opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
-              transition={{ delay: 0.6 }}
-              className="group relative"
-            >
-              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-red-400 transition-colors duration-300">
-                <Lock size={20} />
-              </div>
-              <input
-                type={showPassword ? 'text' : 'password'}
-                placeholder="Mật khẩu (ít nhất 6 ký tự)"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-xl py-4 pl-12 pr-12 text-white placeholder-gray-500 focus:outline-none focus:border-red-500/50 focus:bg-white/10 transition-all duration-300"
-                disabled={isLoading}
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors"
+          {step === 'register' ? (
+            <form onSubmit={handleRegister} className="space-y-5 relative">
+              <motion.div
+                initial={{ x: -20, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                transition={{ delay: 0.5 }}
+                className="group relative"
               >
-                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-              </button>
-              <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-red-500/20 to-orange-500/20 opacity-0 group-focus-within:opacity-100 pointer-events-none transition-opacity duration-500 -z-10 blur-sm" />
-            </motion.div>
-
-            <motion.div
-              initial={{ x: -20, opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
-              transition={{ delay: 0.7 }}
-              className="group relative"
-            >
-              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-red-400 transition-colors duration-300">
-                <Lock size={20} />
-              </div>
-              <input
-                type={showConfirmPassword ? 'text' : 'password'}
-                placeholder="Xác nhận mật khẩu"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-xl py-4 pl-12 pr-12 text-white placeholder-gray-500 focus:outline-none focus:border-red-500/50 focus:bg-white/10 transition-all duration-300"
-                disabled={isLoading}
-              />
-              <button
-                type="button"
-                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors"
-              >
-                {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-              </button>
-              <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-red-500/20 to-orange-500/20 opacity-0 group-focus-within:opacity-100 pointer-events-none transition-opacity duration-500 -z-10 blur-sm" />
-            </motion.div>
-
-            <motion.div
-              initial={{ y: 20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.8 }}
-            >
-              <button
-                type="submit"
-                className="w-full relative group overflow-hidden rounded-xl p-[1px]"
-                disabled={isLoading}
-              >
-                <div className="absolute inset-0 bg-gradient-to-r from-red-600 via-orange-500 to-purple-600 animate-gradient-xy opacity-80 group-hover:opacity-100 transition-opacity" />
-                <div className="relative bg-gray-900/90 hover:bg-gray-900/80 rounded-xl py-4 px-6 transition-all duration-300 flex items-center justify-center gap-2">
-                  {isLoading ? (
-                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  ) : (
-                    <>
-                      <span className="font-medium bg-gradient-to-r from-white to-gray-200 bg-clip-text text-transparent">Đăng ký ngay</span>
-                      <Sparkles size={16} className="text-yellow-200" />
-                    </>
-                  )}
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-red-400 transition-colors duration-300">
+                  <Mail size={20} />
                 </div>
-              </button>
-            </motion.div>
-          </form>
+                <input
+                  type="email"
+                  placeholder="Email của bạn"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl py-4 pl-12 pr-4 text-white placeholder-gray-500 focus:outline-none focus:border-red-500/50 focus:bg-white/10 transition-all duration-300"
+                  disabled={isLoading}
+                />
+                <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-red-500/20 to-orange-500/20 opacity-0 group-focus-within:opacity-100 pointer-events-none transition-opacity duration-500 -z-10 blur-sm" />
+              </motion.div>
+
+              <motion.div
+                initial={{ x: -20, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                transition={{ delay: 0.6 }}
+                className="group relative"
+              >
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-red-400 transition-colors duration-300">
+                  <Lock size={20} />
+                </div>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="Mật khẩu (ít nhất 6 ký tự)"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl py-4 pl-12 pr-12 text-white placeholder-gray-500 focus:outline-none focus:border-red-500/50 focus:bg-white/10 transition-all duration-300"
+                  disabled={isLoading}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors"
+                >
+                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+                <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-red-500/20 to-orange-500/20 opacity-0 group-focus-within:opacity-100 pointer-events-none transition-opacity duration-500 -z-10 blur-sm" />
+              </motion.div>
+
+              <motion.div
+                initial={{ x: -20, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                transition={{ delay: 0.7 }}
+                className="group relative"
+              >
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-red-400 transition-colors duration-300">
+                  <Lock size={20} />
+                </div>
+                <input
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  placeholder="Xác nhận mật khẩu"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl py-4 pl-12 pr-12 text-white placeholder-gray-500 focus:outline-none focus:border-red-500/50 focus:bg-white/10 transition-all duration-300"
+                  disabled={isLoading}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors"
+                >
+                  {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+                <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-red-500/20 to-orange-500/20 opacity-0 group-focus-within:opacity-100 pointer-events-none transition-opacity duration-500 -z-10 blur-sm" />
+              </motion.div>
+
+              <motion.div
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.8 }}
+              >
+                <button
+                  type="submit"
+                  className="w-full relative group overflow-hidden rounded-xl p-[1px]"
+                  disabled={isLoading}
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-red-600 via-orange-500 to-purple-600 animate-gradient-xy opacity-80 group-hover:opacity-100 transition-opacity" />
+                  <div className="relative bg-gray-900/90 hover:bg-gray-900/80 rounded-xl py-4 px-6 transition-all duration-300 flex items-center justify-center gap-2">
+                    {isLoading ? (
+                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : (
+                      <>
+                        <span className="font-medium bg-gradient-to-r from-white to-gray-200 bg-clip-text text-transparent">Đăng ký ngay</span>
+                        <Sparkles size={16} className="text-yellow-200" />
+                      </>
+                    )}
+                  </div>
+                </button>
+              </motion.div>
+            </form>
+          ) : (
+            <form onSubmit={handleVerify} className="space-y-5 relative">
+              <motion.div
+                initial={{ x: -20, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                className="group relative"
+              >
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-red-400 transition-colors duration-300">
+                  <Lock size={20} />
+                </div>
+                <input
+                  type="text"
+                  placeholder="Mã xác nhận (Code)"
+                  value={verificationCode}
+                  onChange={(e) => setVerificationCode(e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl py-4 pl-12 pr-4 text-white placeholder-gray-500 focus:outline-none focus:border-red-500/50 focus:bg-white/10 transition-all duration-300"
+                  disabled={isLoading}
+                />
+                <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-red-500/20 to-orange-500/20 opacity-0 group-focus-within:opacity-100 pointer-events-none transition-opacity duration-500 -z-10 blur-sm" />
+              </motion.div>
+
+              <motion.div
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+              >
+                <button
+                  type="submit"
+                  className="w-full relative group overflow-hidden rounded-xl p-[1px]"
+                  disabled={isLoading}
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-red-600 via-orange-500 to-purple-600 animate-gradient-xy opacity-80 group-hover:opacity-100 transition-opacity" />
+                  <div className="relative bg-gray-900/90 hover:bg-gray-900/80 rounded-xl py-4 px-6 transition-all duration-300 flex items-center justify-center gap-2">
+                    {isLoading ? (
+                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : (
+                      <>
+                        <span className="font-medium bg-gradient-to-r from-white to-gray-200 bg-clip-text text-transparent">Xác thực</span>
+                        <Sparkles size={16} className="text-yellow-200" />
+                      </>
+                    )}
+                  </div>
+                </button>
+              </motion.div>
+              <div className="text-center mt-4">
+                <button
+                  type="button"
+                  onClick={() => setStep('register')}
+                  className="text-sm text-gray-400 hover:text-white underline"
+                >
+                  Quay lại đăng ký
+                </button>
+              </div>
+            </form>
+          )}
 
           <motion.div
             initial={{ y: 20, opacity: 0 }}

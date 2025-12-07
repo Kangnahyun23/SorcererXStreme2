@@ -48,18 +48,67 @@ async function apiRequest(endpoint: string, options: RequestOptions = {}) {
   return text ? JSON.parse(text) : {};
 }
 
-export const authApi = {
-  register: (email: string, password: string) =>
-    apiRequest('/api/auth/register', {
-      method: 'POST',
-      body: { email, password },
-    }),
+import { signUp, signIn, signOut, fetchAuthSession, confirmSignUp } from 'aws-amplify/auth';
 
-  login: (email: string, password: string) =>
-    apiRequest('/api/auth/login', {
+// ... existing code ...
+
+export const authApi = {
+  confirmSignUp: async (email: string, code: string) => {
+    return await confirmSignUp({ username: email, confirmationCode: code });
+  },
+
+  register: async (email: string, password: string) => {
+    // 1. Create user in Cognito
+    await signUp({
+      username: email,
+      password,
+      options: {
+        userAttributes: {
+          email,
+        },
+      },
+    });
+
+    // 2. Sync user to Backend DB (using existing endpoint)
+    // Note: We're sending password to backend too to maintain compatibility 
+    // with existing backend logic that likely hashes it. 
+    // In a pure Cognito setup, backend wouldn't need the password.
+    return apiRequest('/api/auth/register', {
       method: 'POST',
       body: { email, password },
-    }),
+    });
+  },
+
+  login: async (email: string, password: string) => {
+    // 1. Authenticate with Cognito
+    let signInResult;
+    try {
+      signInResult = await signIn({ username: email, password });
+    } catch (error: any) {
+      // If user is already signed in (stale session), sign out and try again
+      if (error.name === 'UserAlreadyAuthenticatedException' ||
+        error.message?.includes('already a signed in user')) {
+        await signOut();
+        signInResult = await signIn({ username: email, password });
+      } else {
+        throw error;
+      }
+    }
+
+    const { isSignedIn, nextStep } = signInResult;
+
+    if (isSignedIn) {
+      // 2. Authenticate with Backend to get Access Token
+      // We ignore the Cognito token for now because our backend doesn't support it yet
+      // This ensures 403 errors are resolved by using the backend's expected token
+      return apiRequest('/api/auth/login', {
+        method: 'POST',
+        body: { email, password },
+      });
+    }
+
+    throw new Error(`Login incomplete. Next step: ${nextStep?.signInStep}`);
+  },
 
   forgotPassword: (email: string) =>
     apiRequest('/api/auth/forgot-password', {
@@ -72,6 +121,10 @@ export const authApi = {
       method: 'POST',
       body: { token, newPassword },
     }),
+
+  logout: async () => {
+    await signOut();
+  }
 };
 
 export const profileApi = {
