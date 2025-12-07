@@ -1,3 +1,4 @@
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
 interface RequestOptions {
@@ -29,11 +30,22 @@ async function apiRequest(endpoint: string, options: RequestOptions = {}) {
   const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ message: 'Request failed' }));
+    const text = await response.text();
+    let error;
+    try {
+      error = JSON.parse(text);
+    } catch {
+      error = { message: text || 'Request failed' };
+    }
     throw new Error(error.message || 'Request failed');
   }
 
-  return response.json();
+  if (response.status === 204) {
+    return {};
+  }
+
+  const text = await response.text();
+  return text ? JSON.parse(text) : {};
 }
 
 export const authApi = {
@@ -205,26 +217,26 @@ export const horoscopeApi = {
 
 export const partnerApi = {
   add: (data: {
-    name: string;
-    gender: 'male' | 'female';
-    birth_date: string;
-    birth_time?: string;
-    birth_place?: string;
+    partner_name: string;
+    partner_gender: 'male' | 'female' | 'other';
+    partner_birth_date: string;
+    partner_birth_time?: string;
+    partner_birth_place?: string;
   }, token: string) =>
-    apiRequest('/api/partners', {
+    apiRequest('/api/partners/', {
       method: 'POST',
       body: data,
       token,
     }),
 
   remove: (token: string) =>
-    apiRequest('/api/partners', {
+    apiRequest('/api/partners/', {
       method: 'DELETE',
       token,
     }),
 
   get: (token: string) =>
-    apiRequest('/api/partners', {
+    apiRequest('/api/partners/', {
       method: 'GET',
       token,
     }),

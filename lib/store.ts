@@ -1,5 +1,3 @@
-'use client';
-
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { authApi, profileApi, partnerApi } from './api-client';
@@ -12,10 +10,10 @@ interface User {
   birth_date?: string;
   birth_time?: string;
   birth_place?: string;
-  isProfileComplete: boolean;
   is_vip?: boolean;
   vipTier?: string;
   vipExpiresAt?: string;
+  isProfileComplete?: boolean;
 }
 
 interface AuthState {
@@ -27,7 +25,7 @@ interface AuthState {
   completeProfile: (name: string, gender: string, birth_date: string, birth_time: string, birth_place: string, token: string) => Promise<void>;
   updateProfile: (name: string, birthDate: string, birthTime: string, birthPlace: string, token: string) => Promise<void>;
   logout: () => void;
-  upgradeToVip: () => void;
+  upgradeToVip: () => Promise<boolean>;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -37,16 +35,15 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: false,
       token: null,
 
-      login: async (email: string, password: string) => {
-        console.log('login called');
+      login: async (email, password) => {
         try {
           const { token, user } = await authApi.login(email, password);
-          console.log('login user from backend:', user);
 
+          // Cookie fallback
           document.cookie = `token=${token}; path=/; max-age=604800;`;
           const isProfileComplete = !!(user.name && user.birth_date && user.birth_time && user.birth_place);
 
-          // Map snake_case từ backend sang camelCase cho frontend
+          // Map snake_case from backend to camelCase for frontend
           const mappedUser = {
             ...user,
             isProfileComplete,
@@ -66,10 +63,10 @@ export const useAuthStore = create<AuthState>()(
         try {
           const { token, user } = await authApi.register(email, password);
 
-          // Lưu token và user sau khi đăng ký thành công
+          // Save token and user after successful registration
           const mappedUser = {
             ...user,
-            isProfileComplete: false, // Mới đăng ký chưa hoàn thiện profile
+            isProfileComplete: false, // New registration has incomplete profile
             vipTier: user.vip_tier,
             vipExpiresAt: user.vip_expires_at,
           };
@@ -197,11 +194,11 @@ export const useChatStore = create<ChatState>((set) => ({
 export interface Partner {
   id: string;
   name: string;
-  birthDate: string; // Map from birth_date
-  birthTime: string; // Map from birth_time
-  birthPlace: string; // Map from birth_place
+  birthDate: string;
+  birthTime: string;
+  birthPlace: string;
   gender: 'male' | 'female' | 'other';
-  startDate: string; // created_at or relationship_start_date
+  startDate: string;
   relationship?: string;
 }
 
@@ -246,14 +243,15 @@ export const useProfileStore = create<ProfileState>()(
 
           if (partnerData) {
             // Map snake_case to camelCase
+            // Backend returns partner_name, partner_gender, partner_birth_date, relationship start date (or created_at)
             const mappedPartner: Partner = {
-              id: partnerData.id.toString(),
-              name: partnerData.name,
-              gender: partnerData.gender,
-              birthDate: partnerData.birth_date,
-              birthTime: partnerData.birth_time || '',
-              birthPlace: partnerData.birth_place || '',
-              startDate: partnerData.createdAt || partnerData.created_at || new Date().toISOString()
+              id: partnerData.id?.toString() || partnerData.partner_id?.toString() || 'unknown',
+              name: partnerData.partner_name,
+              gender: partnerData.partner_gender,
+              birthDate: partnerData.partner_birth_date,
+              birthTime: partnerData.partner_birth_time || '',
+              birthPlace: partnerData.partner_birth_place || '',
+              startDate: partnerData['relationship start date'] || partnerData.created_at || partnerData.createdAt || new Date().toISOString()
             };
             set({ partner: mappedPartner, breakupData: null });
           } else {
@@ -283,24 +281,25 @@ export const useProfileStore = create<ProfileState>()(
           const validGender = (partnerData.gender === 'male' || partnerData.gender === 'female') ? partnerData.gender : 'female';
 
           const payload = {
-            name: partnerData.name,
-            gender: validGender,
-            birth_date: partnerData.birthDate,
-            birth_time: partnerData.birthTime,
-            birth_place: partnerData.birthPlace
+            partner_name: partnerData.name,
+            partner_gender: validGender,
+            // Backend validation requires ISO string for date
+            partner_birth_date: new Date(partnerData.birthDate).toISOString(),
+            partner_birth_time: partnerData.birthTime,
+            partner_birth_place: partnerData.birthPlace
           };
 
           const response = await partnerApi.add(payload, token);
-          const backendPartner = response.data;
+          const backendPartner = response.partner || response.data || response;
 
           const newPartner: Partner = {
-            id: backendPartner.id.toString(),
-            name: backendPartner.name,
-            gender: backendPartner.gender,
-            birthDate: backendPartner.birth_date,
-            birthTime: backendPartner.birth_time || '',
-            birthPlace: backendPartner.birth_place || '',
-            startDate: backendPartner.createdAt || new Date().toISOString()
+            id: backendPartner.id?.toString() || 'temp-id',
+            name: backendPartner.partner_name,
+            gender: backendPartner.partner_gender,
+            birthDate: backendPartner.partner_birth_date,
+            birthTime: backendPartner.partner_birth_time || '',
+            birthPlace: backendPartner.partner_birth_place || '',
+            startDate: backendPartner['relationship start date'] || backendPartner.created_at || new Date().toISOString()
           };
 
           set({ partner: newPartner, breakupData: null });
