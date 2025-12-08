@@ -39,7 +39,7 @@ export const useAuthStore = create<AuthState>()(
       login: async (email, password) => {
         try {
           // authApi.login now returns { token, user: { email } } using Amplify
-          const { token, user } = await authApi.login(email, password);
+          const { token, sub, user } = await authApi.login(email, password);
 
           // Cookie fallback
           document.cookie = `token=${token}; path=/; max-age=604800;`;
@@ -53,8 +53,8 @@ export const useAuthStore = create<AuthState>()(
             if (profile) {
               fullUser = { ...fullUser, ...profile };
             }
-          } catch (e) {
-            // Ignore profile fetch error on first login
+          } catch (e: any) {
+            // Ignore profile fetch error on first login (Profile might not exist yet)
             console.log('Profile fetch failed or empty', e);
           }
 
@@ -87,36 +87,10 @@ export const useAuthStore = create<AuthState>()(
           // authApi.register now handles Cognito signUp + Backend Sync
           await authApi.register(email, password);
 
-          // After registration, we usually need to confirm email (Cognito Code).
-          // For now, we assume we might need to login or show a verification Code screen.
-          // BUT, to keep existing flow simple (as requested), we will attempt to login immediately 
-          // IF the user is confirmed (e.g. if auto-confirm is on). 
-          // If not confirmed, this login might fail. 
-
-          // However, the previous logic logged the user in. 
-          // If we can't login yet (need verification), we should return true but NOT set state,
-          // prompting the UI to ask for verification.
-
-          // For simplicity in this step: We return true, letting the user try to login manually
-          // or we try to login automatically.
-
-          // Let's try to login automatically to match previous UX
-          try {
-            const { token, user } = await authApi.login(email, password);
-
-            const mappedUser: User = {
-              id: 'temp-id',
-              email: user.email,
-              isProfileComplete: false
-            };
-
-            set({ user: mappedUser, isAuthenticated: true, token });
-          } catch (e) {
-            console.log('Auto-login failed, likely needs verification', e);
-            // Return true so UI shows "Success" message, but user is not authenticated yet
-          }
-
+          // Auto-login removed as flow is now Register -> Verify -> Manual Login
           return true;
+
+
         } catch (error) {
           console.error(error);
           return false;
@@ -186,20 +160,25 @@ export const useAuthStore = create<AuthState>()(
         }
 
         try {
-          const response = await profileApi.upgradeToVIP(token);
-          set({
-            user: {
+          // Instead of calling a manual upgrade endpoint, we re-fetch the profile 
+          // because the payment/webhook flow already updated the DB.
+          const profile = await profileApi.get(token);
+
+          if (profile) {
+            const updatedUser = {
               ...user,
-              is_vip: response.user.is_vip,
-              vipTier: response.user.vip_tier,
-              vipExpiresAt: response.user.vip_expires_at,
+              is_vip: profile.is_vip || profile.vipTier === 'VIP',
+              vipTier: profile.vip_tier || user.vipTier,
+              vipExpiresAt: profile.vip_expires_at || user.vipExpiresAt,
               isProfileComplete: true
-            }
-          });
+            };
+            set({ user: updatedUser });
+          }
           return true;
         } catch (error) {
-          console.error('Upgrade VIP error:', error);
-          throw error;
+          console.error('Upgrade VIP sync error:', error);
+          // Don't throw, just log. The user is likely already VIP in DB.
+          return false;
         }
       }
     }),

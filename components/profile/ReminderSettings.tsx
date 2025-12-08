@@ -15,7 +15,6 @@ interface ReminderSettingsState {
     dailyHoroscope: boolean;
     weeklyFortune: boolean;
     monthlyInsight: boolean;
-    reminderTime: string;
     timezone: string;
 }
 
@@ -32,7 +31,6 @@ export function ReminderSettings() {
         dailyHoroscope: false,
         weeklyFortune: false,
         monthlyInsight: false,
-        reminderTime: '09:00',
         timezone: 'Asia/Ho_Chi_Minh'
     });
 
@@ -41,16 +39,20 @@ export function ReminderSettings() {
             if (!token) return;
             try {
                 const data = await reminderApi.get(token);
-                // Merge with defaults to handle potential missing fields
-                setSettings(prev => ({
-                    ...prev,
-                    ...data,
-                    // Ensure email falls back to user email if empty
-                    email: data.email || user?.email || prev.email
-                }));
+                // Map backend snake_case to frontend camelCase
+                const mappedSettings = {
+                    emailEnabled: data.is_subscribed ?? false,
+                    email: user?.email || '', // Backend doesn't return email in settings data, use auth user
+                    dailyHoroscope: true, // Default to true as backend simplifies this
+                    weeklyFortune: true,
+                    monthlyInsight: true,
 
-                // If email is enabled, user probably set it up, so switch to view mode
-                if (data.emailEnabled) {
+                    timezone: 'Asia/Ho_Chi_Minh',
+                };
+
+                setSettings(mappedSettings);
+
+                if (mappedSettings.emailEnabled) {
                     setIsEditing(false);
                 }
             } catch (error) {
@@ -69,19 +71,19 @@ export function ReminderSettings() {
             return;
         }
 
-        if (settings.emailEnabled && !settings.email && !isUnsubscribing) {
-            toast.error('Vui lòng nhập địa chỉ email');
-            return;
-        }
-
         setSaving(true);
         try {
-            const dataToSave = isUnsubscribing ? { ...settings, emailEnabled: false } : settings;
+            // Map frontend camelCase to backend snake_case
+            // Spec: { is_subscribed: boolean, preferred_time?: string }
+            const payload = {
+                is_subscribed: isUnsubscribing ? false : settings.emailEnabled
+            };
+
             if (isUnsubscribing) {
-                setSettings(dataToSave);
+                setSettings(prev => ({ ...prev, emailEnabled: false }));
             }
 
-            await reminderApi.update(dataToSave, token);
+            await reminderApi.update(payload, token);
 
             const message = isUnsubscribing ? 'Đã hủy đăng ký nhắc nhở' : 'Đã lưu cài đặt nhắc nhở';
             toast.success(message);
@@ -182,55 +184,14 @@ export function ReminderSettings() {
                                 />
                             </div>
 
-                            <div className={`grid grid-cols-1 md:grid-cols-2 gap-6 ${disabledStyle}`}>
-                                <div className="bg-black/20 rounded-xl p-5 border border-white/5 space-y-4">
-                                    <h3 className="text-sm font-bold text-gray-300 uppercase tracking-wider mb-2">Loại thông báo</h3>
+                            {/* Removed 'Loại thông báo' section as per user request */}
 
-                                    {[
-                                        { key: 'dailyHoroscope', label: 'Tử vi hàng ngày' },
-                                        { key: 'weeklyFortune', label: 'Vận mệnh tuần mới' },
-                                        { key: 'monthlyInsight', label: 'Tổng quan tháng' }
-                                    ].map((item) => (
-                                        <label key={item.key} className="flex items-center justify-between cursor-pointer group">
-                                            <span className="text-gray-300 group-hover:text-white transition-colors">{item.label}</span>
-                                            <div className="relative">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={(settings as any)[item.key]}
-                                                    disabled={!isEditing}
-                                                    onChange={(e) => setSettings({ ...settings, [item.key]: e.target.checked })}
-                                                    className="sr-only"
-                                                />
-                                                <div className={`w-9 h-5 rounded-full peer-focus:outline-none transition-colors duration-200 relative ${(settings as any)[item.key] ? 'bg-blue-600' : 'bg-gray-700'}`}>
-                                                    <div className={`absolute top-[2px] left-[2px] bg-white border-gray-300 border rounded-full h-4 w-4 transition-transform duration-200 ${(settings as any)[item.key] ? 'translate-x-full border-white' : ''}`}></div>
-                                                </div>
-                                            </div>
-                                        </label>
-                                    ))}
-                                </div>
-
-                                <div className="bg-black/20 rounded-xl p-5 border border-white/5 space-y-4">
-                                    <h3 className="text-sm font-bold text-gray-300 uppercase tracking-wider mb-2">Thời gian gửi</h3>
-
-                                    <div className="space-y-2">
-                                        <label className="text-sm text-gray-400 flex items-center gap-2">
-                                            <Clock className="w-3 h-3" /> Giờ gửi tin (hàng ngày)
-                                        </label>
-                                        <Input
-                                            type="time"
-                                            value={settings.reminderTime}
-                                            disabled={!isEditing}
-                                            onChange={(e) => setSettings({ ...settings, reminderTime: e.target.value })}
-                                            className={`border-white/10 ${inputDisabledStyle}`}
-                                        />
-                                    </div>
-
-                                    <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20 flex gap-2">
-                                        <AlertCircle className="w-4 h-4 text-blue-400 flex-shrink-0 mt-0.5" />
-                                        <p className="text-xs text-blue-200">
-                                            Email sẽ được gửi tự động mỗi ngày vào giờ bạn chọn. Hãy kiểm tra cả hộp thư Spam nhé.
-                                        </p>
-                                    </div>
+                            <div className={`bg-black/20 rounded-xl p-5 border border-white/5 space-y-4 ${disabledStyle}`}>
+                                <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20 flex gap-2">
+                                    <AlertCircle className="w-4 h-4 text-blue-400 flex-shrink-0 mt-0.5" />
+                                    <p className="text-xs text-blue-200">
+                                        Email sẽ được gửi tự động mỗi ngày vào 08:00 sáng. Hãy kiểm tra cả hộp thư Spam nhé.
+                                    </p>
                                 </div>
                             </div>
 
@@ -291,6 +252,6 @@ export function ReminderSettings() {
                     </div>
                 )}
             </div>
-        </motion.div>
+        </motion.div >
     );
 }

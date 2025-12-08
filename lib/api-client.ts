@@ -1,4 +1,3 @@
-
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
 interface RequestOptions {
@@ -48,9 +47,7 @@ async function apiRequest(endpoint: string, options: RequestOptions = {}) {
   return text ? JSON.parse(text) : {};
 }
 
-import { signUp, signIn, signOut, fetchAuthSession, confirmSignUp } from 'aws-amplify/auth';
-
-// ... existing code ...
+import { signUp, signIn, signOut, fetchAuthSession, confirmSignUp, resetPassword, confirmResetPassword, resendSignUpCode } from 'aws-amplify/auth';
 
 export const authApi = {
   confirmSignUp: async (email: string, code: string) => {
@@ -58,34 +55,39 @@ export const authApi = {
   },
 
   register: async (email: string, password: string) => {
-    // 1. Create user in Cognito
-    await signUp({
-      username: email,
-      password,
-      options: {
-        userAttributes: {
-          email,
+    // 1. Create user in Cognito (No Backend Sync)
+    try {
+      const { userId } = await signUp({
+        username: email,
+        password,
+        options: {
+          userAttributes: {
+            email,
+          },
         },
-      },
-    });
-
-    // 2. Sync user to Backend DB (using existing endpoint)
-    // Note: We're sending password to backend too to maintain compatibility 
-    // with existing backend logic that likely hashes it. 
-    // In a pure Cognito setup, backend wouldn't need the password.
-    return apiRequest('/api/auth/register', {
-      method: 'POST',
-      body: { email, password },
-    });
+      });
+      return { userId };
+    } catch (error: any) {
+      console.log("SignUp Error:", error);
+      if (error.name === 'UsernameExistsException' || error.message?.includes('User already exists')) {
+        try {
+          await resendSignUpCode({ username: email });
+          return { message: 'Verification code resent' };
+        } catch (resendError: any) {
+          console.warn('Resend failed:', resendError);
+          throw new Error('Email này đã được đăng ký. Vui lòng đăng nhập.');
+        }
+      } else {
+        throw error;
+      }
+    }
   },
 
   login: async (email: string, password: string) => {
-    // 1. Authenticate with Cognito
     let signInResult;
     try {
       signInResult = await signIn({ username: email, password });
     } catch (error: any) {
-      // If user is already signed in (stale session), sign out and try again
       if (error.name === 'UserAlreadyAuthenticatedException' ||
         error.message?.includes('already a signed in user')) {
         await signOut();
@@ -98,29 +100,31 @@ export const authApi = {
     const { isSignedIn, nextStep } = signInResult;
 
     if (isSignedIn) {
-      // 2. Authenticate with Backend to get Access Token
-      // We ignore the Cognito token for now because our backend doesn't support it yet
-      // This ensures 403 errors are resolved by using the backend's expected token
-      return apiRequest('/api/auth/login', {
-        method: 'POST',
-        body: { email, password },
-      });
+      const session = await fetchAuthSession();
+      // Use Access Token for Backend Verification
+      const token = session.tokens?.accessToken?.toString();
+
+      if (!token) {
+        throw new Error('Failed to retrieve access token from Cognito session');
+      }
+
+      return {
+        token,
+        sub: session.userSub,
+        user: { email }
+      };
     }
 
     throw new Error(`Login incomplete. Next step: ${nextStep?.signInStep}`);
   },
 
-  forgotPassword: (email: string) =>
-    apiRequest('/api/auth/forgot-password', {
-      method: 'POST',
-      body: { email },
-    }),
+  forgotPassword: async (email: string) => {
+    return await resetPassword({ username: email });
+  },
 
-  resetPassword: (token: string, newPassword: string) =>
-    apiRequest('/api/auth/reset-password', {
-      method: 'POST',
-      body: { token, newPassword },
-    }),
+  resetPassword: async (email: string, code: string, newPassword: string) => {
+    return await confirmResetPassword({ username: email, confirmationCode: code, newPassword });
+  },
 
   logout: async () => {
     await signOut();
@@ -297,18 +301,13 @@ export const partnerApi = {
 
 export const reminderApi = {
   get: (token: string) =>
-    apiRequest('/api/reminders', { token }),
+    apiRequest('/api/reminders/', { token }),
 
   update: (data: {
-    emailEnabled?: boolean;
-    email?: string;
-    dailyHoroscope?: boolean;
-    weeklyFortune?: boolean;
-    monthlyInsight?: boolean;
-    reminderTime?: string;
-    timezone?: string;
+    is_subscribed: boolean;
+    preferred_time?: string;
   }, token: string) =>
-    apiRequest('/api/reminders', {
+    apiRequest('/api/reminders/', {
       method: 'PATCH',
       body: data,
       token,
@@ -340,4 +339,19 @@ export const subscriptionApi = {
 
   checkFeatureAccess: (feature: string, token: string) =>
     apiRequest(`/api/subscription/check-access?feature=${feature}`, { token }),
+};
+
+export const paymentApi = {
+  create: (data: { tier: 'VIP'; durationMonths: number }, token: string) =>
+    apiRequest('/api/payments/create', {
+      method: 'POST',
+      body: data,
+      token,
+    }),
+
+  checkStatus: (subscriptionId: string, token: string) =>
+    apiRequest(`/api/payments/status/${subscriptionId}`, {
+      method: 'GET',
+      token,
+    }),
 };

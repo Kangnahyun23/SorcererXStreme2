@@ -31,9 +31,9 @@ export default function LoginPage() {
         toast.success('Đăng nhập thành công!');
         const { user } = useAuthStore.getState();
         if (user?.isProfileComplete) {
-          router.push('/dashboard');
+          router.push('/profile'); // Redirect to Profile instead of Dashboard
         } else {
-          router.push('/auth/complete-profile');
+          router.push('/auth/setup');
         }
       } else {
         toast.error('Email hoặc mật khẩu không đúng');

@@ -68,14 +68,8 @@ export default function RegisterPage() {
     try {
       const success = await confirmRegistration(email, verificationCode);
       if (success) {
-        toast.success('Xác thực thành công! Đang đăng nhập...');
-        // Auto login after verification
-        const loginSuccess = await login(email, password);
-        if (loginSuccess) {
-          router.push('/auth/setup'); // Redirect to Setup Page first
-        } else {
-          router.push('/auth/login');
-        }
+        toast.success('Xác thực thành công! Vui lòng đăng nhập.');
+        router.push('/auth/login');
       } else {
         toast.error('Mã xác nhận không đúng hoặc đã hết hạn');
       }

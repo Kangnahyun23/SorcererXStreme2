@@ -37,7 +37,7 @@ if (typeof window !== 'undefined') {
 
 export const useSidebarCollapsed = () => {
   const [isCollapsed, setIsCollapsed] = useState(sidebarCollapsedState);
-  
+
   useEffect(() => {
     const listener = (collapsed: boolean) => setIsCollapsed(collapsed);
     sidebarListeners.push(listener);
@@ -46,7 +46,7 @@ export const useSidebarCollapsed = () => {
       if (index > -1) sidebarListeners.splice(index, 1);
     };
   }, []);
-  
+
   return isCollapsed;
 };
 
@@ -118,7 +118,7 @@ export const Sidebar = () => {
     const handleResize = () => {
       const mobile = window.innerWidth < 768;
       setIsMobile(mobile);
-      
+
       // On mobile, always collapse. On desktop, keep user's preference
       if (mobile && !isCollapsed) {
         const newCollapsed = true;
@@ -166,7 +166,7 @@ export const Sidebar = () => {
           isVIP ? "border-yellow-500/20" : "border-white/10"
         )}>
           {!isCollapsed && (
-            <Link href="/dashboard" className="flex items-center gap-3 overflow-hidden flex-1">
+            <Link href="/" className="flex items-center gap-3 overflow-hidden flex-1">
               <AnimatePresence mode="wait">
                 <motion.div
                   key="expanded-logo"
@@ -193,7 +193,7 @@ export const Sidebar = () => {
               </AnimatePresence>
             </Link>
           )}
-          
+
           {/* Toggle Button in Header */}
           <button
             onClick={toggleSidebar}

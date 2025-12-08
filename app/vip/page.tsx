@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/Button';
 import { Sidebar, useSidebarCollapsed } from '@/components/layout/Sidebar';
 import { useRouter } from 'next/navigation';
 import { VIPBadge } from '@/components/ui/VIPBadge';
+import { Footer } from '@/components/layout/Footer';
+import { AnimatedBackground } from '@/components/ui/AnimatedBackground';
 
 const benefits = [
   {
@@ -40,11 +42,9 @@ const features = [
   'Biểu đồ chiêm tinh 3D',
   'Tử vi tổng quát hàng ngày',
   'Phân tích thần số học sâu',
-  'Lưu lịch sử không giới hạn',
   'Dự đoán tương lai chính xác',
   'Nội dung độc quyền hàng tuần',
-  'Tư vấn huyền học cá nhân',
-  'Quà tặng đặc biệt mỗi tháng'
+  'Tư vấn huyền học cá nhân'
 ];
 
 export default function VIPIntroPage() {
@@ -52,10 +52,11 @@ export default function VIPIntroPage() {
   const sidebarCollapsed = useSidebarCollapsed();
 
   return (
-    <div className="flex min-h-screen bg-gray-950" style={{ fontFamily: 'Be Vietnam Pro, sans-serif' }}>
+    <div className="flex min-h-screen bg-black overflow-hidden" style={{ fontFamily: 'Be Vietnam Pro, sans-serif' }}>
+      <AnimatedBackground />
       <Sidebar />
-      
-      <main 
+
+      <main
         className="flex-1 overflow-auto transition-all duration-200"
         style={{ marginLeft: sidebarCollapsed ? '80px' : '280px' }}
       >
@@ -67,26 +68,8 @@ export default function VIPIntroPage() {
         >
           {/* Animated Background */}
           <div className="absolute inset-0 overflow-hidden">
-            {[...Array(20)].map((_, i) => (
-              <motion.div
-                key={i}
-                className="absolute w-2 h-2 bg-yellow-400/20 rounded-full"
-                style={{
-                  left: `${Math.random() * 100}%`,
-                  top: `${Math.random() * 100}%`,
-                }}
-                animate={{
-                  y: [0, -30, 0],
-                  opacity: [0.2, 0.5, 0.2],
-                  scale: [1, 1.5, 1]
-                }}
-                transition={{
-                  duration: 3 + Math.random() * 2,
-                  repeat: Infinity,
-                  delay: Math.random() * 2
-                }}
-              />
-            ))}
+            <div className="absolute top-0 left-1/4 w-96 h-96 bg-yellow-500/10 rounded-full blur-[100px] animate-pulse" />
+            <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-amber-600/10 rounded-full blur-[100px] animate-pulse delay-1000" />
           </div>
 
           <div className="relative z-10 max-w-6xl mx-auto px-8 py-20 text-center">
@@ -134,20 +117,16 @@ export default function VIPIntroPage() {
               transition={{ delay: 0.4 }}
               className="flex flex-col sm:flex-row gap-4 justify-center mb-8"
             >
-              <Button
-                onClick={() => router.push('/vip/plans')}
-                className="bg-gradient-to-r from-yellow-400 via-yellow-500 to-amber-500 hover:from-yellow-500 hover:to-amber-600 text-gray-900 font-bold py-4 px-8 rounded-xl shadow-lg shadow-yellow-500/30 hover:shadow-yellow-500/50 transition-all text-lg border-2 border-yellow-300"
-              >
-                <Crown className="w-5 h-5 mr-2" />
-                Nâng cấp ngay
-              </Button>
-              <Button
-                onClick={() => router.push('/vip/plans')}
-                variant="secondary"
-                className="border-2 border-yellow-500/50 text-yellow-400 hover:bg-yellow-500/10 py-4 px-8 rounded-xl text-lg font-semibold"
-              >
-                Xem bảng giá
-              </Button>
+              <div className="relative group">
+                <div className="absolute -inset-1 bg-gradient-to-r from-yellow-400 to-amber-600 rounded-xl blur opacity-25 group-hover:opacity-100 transition duration-1000 group-hover:duration-200"></div>
+                <Button
+                  onClick={() => router.push('/vip/plans')}
+                  className="relative bg-gradient-to-r from-yellow-400 via-yellow-500 to-amber-500 hover:from-yellow-500 hover:to-amber-600 text-gray-900 font-bold py-6 px-12 rounded-xl shadow-xl shadow-yellow-500/20 hover:shadow-yellow-500/40 transition-all text-xl border border-yellow-300/50"
+                >
+                  <Crown className="w-6 h-6 mr-3 animate-pulse" />
+                  Nâng cấp ngay - Chỉ 36k/tháng
+                </Button>
+              </div>
             </motion.div>
 
             <motion.div
@@ -270,6 +249,9 @@ export default function VIPIntroPage() {
             </p>
           </div>
         </motion.section>
+        <div className="mt-auto">
+          <Footer forceRender={true} />
+        </div>
       </main>
     </div>
   );

@@ -8,21 +8,22 @@ import { Button } from '@/components/ui/Button';
 import { AnimatedBackground } from '@/components/ui/AnimatedBackground';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
+import { authApi } from '@/lib/api-client';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
+  const [code, setCode] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [step, setStep] = useState<'request' | 'confirm'>('request');
   const [isLoading, setIsLoading] = useState(false);
-  const [isEmailSent, setIsEmailSent] = useState(false);
   const router = useRouter();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleRequestReset = async (e: React.FormEvent) => {
     e.preventDefault();
-
     if (!email) {
       toast.error('Vui lòng nhập email');
       return;
     }
-
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       toast.error('Email không hợp lệ');
@@ -31,85 +32,36 @@ export default function ForgotPasswordPage() {
 
     setIsLoading(true);
     try {
-      // Gọi backend API để xử lý forgot password
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/forgot-password`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email }),
-      });
-
-      if (response.ok) {
-        setIsEmailSent(true);
-        toast.success('Email khôi phục mật khẩu đã được gửi!');
-      } else {
-        const error = await response.json().catch(() => ({ message: 'Có lỗi xảy ra' }));
-        toast.error(error.message || 'Có lỗi xảy ra, vui lòng thử lại');
-      }
+      await authApi.forgotPassword(email);
+      toast.success('Đã gửi mã xác nhận đến email!');
+      setStep('confirm');
     } catch (error: any) {
       console.error('Forgot password error:', error);
-      toast.error('Không thể kết nối đến server');
+      toast.error(error.message || 'Không thể gửi yêu cầu. Vui lòng thử lại.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  if (isEmailSent) {
-    return (
-      <div className="relative min-h-screen flex items-center justify-center p-4 overflow-hidden font-sans text-white">
-        <AnimatedBackground />
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.5 }}
-          className="relative z-10 w-full max-w-md"
-        >
-          <div className="relative backdrop-blur-xl bg-black/30 rounded-3xl p-8 border border-white/10 shadow-[0_0_50px_-12px_rgba(255,0,0,0.25)] text-center overflow-hidden">
-            {/* Card Glow Effect */}
-            <div className="absolute -top-24 -right-24 w-48 h-48 bg-green-600/20 rounded-full blur-3xl" />
+  const handleConfirmReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!code || !newPassword) {
+      toast.error('Vui lòng nhập đầy đủ thông tin');
+      return;
+    }
 
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
-              className="mx-auto w-20 h-20 bg-gradient-to-br from-green-500/20 to-emerald-500/20 border border-green-500/30 rounded-full flex items-center justify-center mb-6 shadow-[0_0_15px_rgba(16,185,129,0.3)]"
-            >
-              <CheckCircle className="w-10 h-10 text-green-400" />
-            </motion.div>
-
-            <h2 className="text-2xl font-bold bg-gradient-to-r from-white via-green-200 to-white bg-clip-text text-transparent mb-4" style={{ fontFamily: 'Pacifico, cursive' }}>
-              Email đã được gửi!
-            </h2>
-
-            <p className="text-gray-400 mb-8 text-sm font-light">
-              Chúng tôi đã gửi một email khôi phục mật khẩu đến <span className="text-white font-semibold">{email}</span>.
-              Vui lòng kiểm tra hộp thư và làm theo hướng dẫn.
-            </p>
-
-            <div className="space-y-4">
-              <button
-                onClick={() => router.push('/auth/login')}
-                className="w-full relative group overflow-hidden rounded-xl p-[1px]"
-              >
-                <div className="absolute inset-0 bg-gradient-to-r from-green-600 via-emerald-500 to-teal-600 animate-gradient-xy opacity-80 group-hover:opacity-100 transition-opacity" />
-                <div className="relative bg-gray-900/90 hover:bg-gray-900/80 rounded-xl py-3.5 px-6 transition-all duration-300">
-                  <span className="font-medium text-white">Quay lại đăng nhập</span>
-                </div>
-              </button>
-
-              <button
-                onClick={() => setIsEmailSent(false)}
-                className="w-full text-gray-400 hover:text-white transition-colors py-2 text-sm"
-              >
-                Gửi lại email
-              </button>
-            </div>
-          </div>
-        </motion.div>
-      </div>
-    );
-  }
+    setIsLoading(true);
+    try {
+      await authApi.resetPassword(email, code, newPassword);
+      toast.success('Đặt lại mật khẩu thành công! Vui lòng đăng nhập.');
+      router.push('/auth/login');
+    } catch (error: any) {
+      console.error('Reset password error:', error);
+      toast.error(error.message || 'Đặt lại mật khẩu thất bại. Mã xác nhận có thể không đúng.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="relative min-h-screen flex items-center justify-center p-4 overflow-hidden font-sans text-white">
@@ -155,33 +107,79 @@ export default function ForgotPasswordPage() {
               <Sparkles className="w-8 h-8 text-blue-400" />
             </motion.div>
             <h1 className="text-3xl font-bold bg-gradient-to-r from-white via-blue-200 to-white bg-clip-text text-transparent mb-2" style={{ fontFamily: 'Pacifico, cursive' }}>
-              Quên mật khẩu?
+              {step === 'request' ? 'Quên mật khẩu?' : 'Đặt lại mật khẩu'}
             </h1>
             <p className="text-gray-400 text-sm font-light">
-              Đừng lo lắng, hãy nhập email để nhận liên kết khôi phục
+              {step === 'request'
+                ? 'Đừng lo lắng, hãy nhập email để nhận mã xác nhận'
+                : 'Nhập mã xác nhận từ email và mật khẩu mới'}
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6 relative">
-            <motion.div
-              initial={{ x: -20, opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
-              transition={{ delay: 0.3 }}
-              className="group relative"
-            >
-              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-blue-400 transition-colors duration-300">
-                <Mail size={20} />
+          <form onSubmit={step === 'request' ? handleRequestReset : handleConfirmReset} className="space-y-6 relative">
+            {step === 'request' ? (
+              <motion.div
+                initial={{ x: -20, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                className="group relative"
+              >
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-blue-400 transition-colors duration-300">
+                  <Mail size={20} />
+                </div>
+                <input
+                  type="email"
+                  placeholder="Email của bạn"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl py-4 pl-12 pr-4 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all duration-300"
+                  disabled={isLoading}
+                />
+              </motion.div>
+            ) : (
+              <div className="space-y-4">
+                <div className="text-center bg-white/5 rounded-lg p-3 border border-white/10 mb-4">
+                  <p className="text-xs text-gray-400">Mã xác nhận đã gửi tới:</p>
+                  <p className="text-sm font-medium text-white">{email}</p>
+                </div>
+
+                <motion.div
+                  initial={{ x: -20, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  className="group relative"
+                >
+                  <input
+                    type="text"
+                    name="code"
+                    id="verification-code"
+                    placeholder="Mã xác nhận (Code)"
+                    value={code}
+                    onChange={(e) => setCode(e.target.value)}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl py-4 px-4 text-center text-white placeholder-gray-500 focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all duration-300 tracking-widest text-lg font-mono"
+                    disabled={isLoading}
+                    autoComplete="one-time-code"
+                    maxLength={6}
+                  />
+                </motion.div>
+                <motion.div
+                  initial={{ x: -20, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  transition={{ delay: 0.1 }}
+                  className="group relative"
+                >
+                  <input
+                    type="password"
+                    name="new-password"
+                    id="new-password"
+                    placeholder="Mật khẩu mới"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl py-4 px-4 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all duration-300"
+                    disabled={isLoading}
+                    autoComplete="new-password"
+                  />
+                </motion.div>
               </div>
-              <input
-                type="email"
-                placeholder="Email của bạn"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-xl py-4 pl-12 pr-4 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all duration-300"
-                disabled={isLoading}
-              />
-              <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-blue-500/20 to-purple-500/20 opacity-0 group-focus-within:opacity-100 pointer-events-none transition-opacity duration-500 -z-10 blur-sm" />
-            </motion.div>
+            )}
 
             <motion.div
               initial={{ y: 20, opacity: 0 }}
@@ -198,7 +196,9 @@ export default function ForgotPasswordPage() {
                   {isLoading ? (
                     <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   ) : (
-                    <span className="font-medium text-white">Gửi email khôi phục</span>
+                    <span className="font-medium text-white">
+                      {step === 'request' ? 'Gửi mã xác nhận' : 'Đổi mật khẩu'}
+                    </span>
                   )}
                 </div>
               </button>

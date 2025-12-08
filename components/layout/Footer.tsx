@@ -1,7 +1,21 @@
+'use client';
+
 import Link from 'next/link';
 import { Facebook, Instagram, Twitter, Mail, MapPin, Phone } from 'lucide-react';
+import { usePathname } from 'next/navigation';
 
-export const Footer = () => {
+export const Footer = ({ forceRender = false }: { forceRender?: boolean }) => {
+    const pathname = usePathname();
+
+    // List of paths that have the fixed Sidebar
+    // On these pages, we will render the Footer manually inside the page content to avoid overlap
+    const sidebarPaths = ['/vip', '/dashboard', '/profile', '/chat', '/tarot', '/astrology', '/numerology', '/fortune'];
+    const shouldHideGlobalFooter = sidebarPaths.some(path => pathname?.startsWith(path));
+
+    if (shouldHideGlobalFooter && !forceRender) {
+        return null;
+    }
+
     return (
         <footer className="bg-gray-950 border-t border-white/10 pt-16 pb-8">
             <div className="container mx-auto px-6">
