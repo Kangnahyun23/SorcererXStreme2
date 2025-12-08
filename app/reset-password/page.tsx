@@ -14,6 +14,8 @@ function ResetPasswordForm() {
     const searchParams = useSearchParams();
     const token = searchParams.get('token');
 
+    const email = searchParams.get('email');
+
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
@@ -23,8 +25,8 @@ function ResetPasswordForm() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        if (!token) {
-            toast.error('Token không hợp lệ hoặc đã hết hạn');
+        if (!token || !email) {
+            toast.error('Link không hợp lệ (thiếu token hoặc email)');
             return;
         }
 
@@ -45,7 +47,7 @@ function ResetPasswordForm() {
 
         setIsLoading(true);
         try {
-            await authApi.resetPassword(token, password);
+            await authApi.resetPassword(email, token, password);
             toast.success('Đặt lại mật khẩu thành công! Vui lòng đăng nhập.');
             router.push('/auth/login');
         } catch (error) {
