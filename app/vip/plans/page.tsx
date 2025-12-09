@@ -44,7 +44,7 @@ const VIP_PLANS_DISPLAY: (VIPPlanInfo & { badge?: string })[] = [
     tier: VIPTier.VIP,
     name: 'VIP Premium',
     nameEn: 'VIP',
-    price: 36000,
+    price: 39000,
     duration: 'tháng',
     color: 'from-amber-400 to-yellow-600',
     description: 'Mở khóa toàn bộ sức mạnh',
@@ -240,7 +240,7 @@ export default function VIPPlansPage() {
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             className="text-4xl md:text-6xl font-bold mb-6 bg-gradient-to-r from-yellow-200 via-amber-400 to-yellow-600 bg-clip-text text-transparent"
-            style={{ fontFamily: 'Cinzel, serif' }} // Example font if available, else fallback
+            style={{ fontFamily: 'Pacifico, cursive' }}
           >
             Trở thành VIP Member
           </motion.h1>
@@ -251,7 +251,7 @@ export default function VIPPlansPage() {
             transition={{ delay: 0.2 }}
             className="text-gray-400 text-lg max-w-2xl mx-auto leading-relaxed"
           >
-            Đầu tư <span className="text-yellow-400 font-bold">1.200đ mỗi ngày</span> để thấu hiểu bản thân và định hướng tương lai chuẩn xác nhất.
+            Đầu tư <span className="text-yellow-400 font-bold">1.300đ mỗi ngày</span> để thấu hiểu bản thân và định hướng tương lai chuẩn xác nhất.
           </motion.p>
         </div>
 

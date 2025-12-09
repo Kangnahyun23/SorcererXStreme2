@@ -124,7 +124,7 @@ export default function VIPIntroPage() {
                   className="relative bg-gradient-to-r from-yellow-400 via-yellow-500 to-amber-500 hover:from-yellow-500 hover:to-amber-600 text-gray-900 font-bold py-6 px-12 rounded-xl shadow-xl shadow-yellow-500/20 hover:shadow-yellow-500/40 transition-all text-xl border border-yellow-300/50"
                 >
                   <Crown className="w-6 h-6 mr-3 animate-pulse" />
-                  Nâng cấp ngay - Chỉ 36k/tháng
+                  Nâng cấp ngay - Chỉ 39k/tháng
                 </Button>
               </div>
             </motion.div>

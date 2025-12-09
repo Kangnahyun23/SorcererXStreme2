@@ -97,6 +97,21 @@ export default function ProfilePage() {
     }
   };
 
+  // Helper function to format date for display (dd-mm-yyyy)
+  const formatDateDisplay = (dateString: string | undefined) => {
+    if (!dateString) return '';
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return dateString;
+      const day = date.getDate().toString().padStart(2, '0');
+      const month = (date.getMonth() + 1).toString().padStart(2, '0');
+      const year = date.getFullYear();
+      return `${day}-${month}-${year}`;
+    } catch {
+      return dateString || '';
+    }
+  };
+
   const [editForm, setEditForm] = useState({
     name: user?.name || '',
     birthDate: formatDateForInput(user?.birth_date),
@@ -594,7 +609,7 @@ export default function ProfilePage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                       <div className="bg-black/20 rounded-xl p-4 border border-white/5">
                         <p className="text-sm text-gray-400 mb-1">Ngày sinh</p>
-                        <p className="text-white font-medium">{partner.birthDate}</p>
+                        <p className="text-white font-medium">{formatDateDisplay(partner.birthDate)}</p>
                       </div>
                       <div className="bg-black/20 rounded-xl p-4 border border-white/5">
                         <p className="text-sm text-gray-400 mb-1">Giờ sinh</p>
@@ -607,7 +622,7 @@ export default function ProfilePage() {
                       <div className="bg-black/20 rounded-xl p-4 border border-white/5">
                         <p className="text-sm text-gray-400 mb-1">Bắt đầu từ</p>
                         <p className="text-white font-medium">
-                          {new Date(partner.startDate).toLocaleDateString('vi-VN')}
+                          {formatDateDisplay(partner.startDate)}
                         </p>
                       </div>
                     </div>
