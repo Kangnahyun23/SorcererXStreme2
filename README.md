@@ -200,3 +200,6 @@ Update `NEXT_PUBLIC_API_URL` to point to your deployed backend API.
 - Token is stored in both localStorage (Zustand persist) and cookies
 - Backend API calls use Bearer token authentication
 - Error handling with react-hot-toast for user notifications
+
+## Link deploy by AWS Amplify
+https://main.d30n5a8g6cs88k.amplifyapp.com/
